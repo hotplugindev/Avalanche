@@ -41,8 +41,8 @@ Establish the project structure.
 
 ## Tasks
 
-- [ ] Create Cargo workspace
-- [ ] Create all core crates
+- [x] Create Cargo workspace
+- [x] Create all core crates
 - [ ] Create Tauri desktop shell
 - [ ] Create frontend application
 - [ ] Establish development flake
@@ -69,23 +69,23 @@ Implement the semantic model.
 
 ## Tasks
 
-- [ ] Repository
-- [ ] Host
-- [ ] User
-- [ ] Profile
-- [ ] Module
-- [ ] Application
-- [ ] Capability
-- [ ] Request
-- [ ] OptionSchema
-- [ ] OptionDefinition
-- [ ] Provenance
-- [ ] Ownership
-- [ ] Layer
-- [ ] Priority
-- [ ] Condition
-- [ ] Transaction
-- [ ] ValidationReport
+- [x] Repository
+- [x] Host
+- [x] User
+- [x] Profile
+- [x] Module
+- [x] Application
+- [x] Capability
+- [x] Request
+- [x] OptionSchema
+- [x] OptionDefinition
+- [x] Provenance
+- [x] Ownership
+- [x] Layer
+- [x] Priority
+- [x] Condition
+- [x] Transaction
+- [x] ValidationReport
 
 ## Exit criteria
 

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::option::OptionDefinition;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Provenance {
     pub option_path: String,
     pub definitions: Vec<OptionDefinition>,

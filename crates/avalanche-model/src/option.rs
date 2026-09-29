@@ -25,7 +25,7 @@ pub enum NixType {
     Unknown,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OptionSchema {
     pub path: String,
     pub scope: Scope,
@@ -50,7 +50,7 @@ pub enum DefinitionType {
     Unknown,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OptionDefinition {
     pub option_path: String,
     pub value: Option<serde_json::Value>,
@@ -71,7 +71,7 @@ impl OptionDefinition {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EffectiveValue {
     pub option_path: String,
     pub value: Option<JsonValue>,
