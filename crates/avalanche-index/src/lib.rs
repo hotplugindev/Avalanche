@@ -1,9 +1,8 @@
-use avalanche_model::{
-    Application, Capability, EffectiveValue, Host,
-    Module, OptionDefinition, OptionSchema,
-    Profile, Repository,
-};
 use avalanche_model::repository::Fingerprint;
+use avalanche_model::{
+    Application, Capability, EffectiveValue, Host, Module, OptionDefinition, OptionSchema, Profile,
+    Repository,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -56,6 +55,12 @@ impl RepositoryIndex {
 }
 
 pub struct IndexService;
+
+impl Default for IndexService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl IndexService {
     pub fn new() -> Self {

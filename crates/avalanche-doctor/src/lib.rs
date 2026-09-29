@@ -6,6 +6,12 @@ pub struct Diagnosis {
     pub findings: Vec<ValidationFinding>,
 }
 
+impl Default for Diagnosis {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Diagnosis {
     pub fn new() -> Self {
         Self {
@@ -25,6 +31,12 @@ impl Diagnosis {
 }
 
 pub struct DoctorService;
+
+impl Default for DoctorService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl DoctorService {
     pub fn new() -> Self {

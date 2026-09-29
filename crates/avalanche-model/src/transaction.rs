@@ -21,7 +21,10 @@ pub enum MutationIntent {
         value: serde_json::Value,
         host: String,
     },
-    ResetHostOverride { path: String, host: String },
+    ResetHostOverride {
+        path: String,
+        host: String,
+    },
     EnableCapability {
         capability: String,
         requester: String,
@@ -38,9 +41,16 @@ pub enum MutationIntent {
         capability: String,
         requester: String,
     },
-    CreateModule { name: String, kind: String },
-    CreateHost { name: String },
-    CreateUser { name: String },
+    CreateModule {
+        name: String,
+        kind: String,
+    },
+    CreateHost {
+        name: String,
+    },
+    CreateUser {
+        name: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

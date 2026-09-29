@@ -3,12 +3,24 @@ use std::collections::BTreeMap;
 
 fn span(start_line: u32, end_line: u32) -> SourceSpan {
     SourceSpan::new(
-        Position { line: start_line, column: 1 },
-        Position { line: end_line, column: 1 },
+        Position {
+            line: start_line,
+            column: 1,
+        },
+        Position {
+            line: end_line,
+            column: 1,
+        },
     )
 }
 
-fn def(path: &str, priority: Priority, layer: Layer, scope: Scope, def_type: DefinitionType) -> OptionDefinition {
+fn def(
+    path: &str,
+    priority: Priority,
+    layer: Layer,
+    scope: Scope,
+    def_type: DefinitionType,
+) -> OptionDefinition {
     OptionDefinition {
         option_path: path.to_string(),
         value: None,
@@ -295,7 +307,10 @@ fn provenance_preserves_all_definition_metadata() {
     assert_eq!(provenance.definitions[0].layer, Layer::Profile);
     assert_eq!(provenance.definitions[1].layer, Layer::Capability);
     assert_eq!(provenance.definitions[1].host.as_deref(), Some("pc"));
-    assert_eq!(provenance.definitions[1].definition_type, DefinitionType::MkIf);
+    assert_eq!(
+        provenance.definitions[1].definition_type,
+        DefinitionType::MkIf
+    );
 }
 
 #[test]
@@ -323,14 +338,20 @@ fn nix_value_types() {
     assert_ne!(bool_val, NixValue::Bool(false));
     assert_eq!(int_val, NixValue::Int(42));
     assert_eq!(str_val, NixValue::Str("hello".to_string()));
-    assert_eq!(list_val, NixValue::List(vec![NixValue::Int(1), NixValue::Int(2)]));
+    assert_eq!(
+        list_val,
+        NixValue::List(vec![NixValue::Int(1), NixValue::Int(2)])
+    );
     assert_eq!(attrs_val.clone(), attrs_val);
     assert_ne!(bool_val, int_val);
 }
 
 #[test]
 fn ownership_statuses() {
-    let owned = Ownership::new("services.pipewire.enable", "capabilities/system/audio/pipewire.nix");
+    let owned = Ownership::new(
+        "services.pipewire.enable",
+        "capabilities/system/audio/pipewire.nix",
+    );
     assert!(owned.can_auto_edit());
     assert_eq!(owned.status, OwnershipStatus::Owned);
 
@@ -351,13 +372,14 @@ fn ownership_statuses() {
 
 #[test]
 fn transaction_lifecycle() {
-    let mut txn = Transaction::new("txn-001", vec![
-        MutationIntent::SetOption {
+    let mut txn = Transaction::new(
+        "txn-001",
+        vec![MutationIntent::SetOption {
             path: "programs.git.enable".to_string(),
             value: serde_json::Value::Bool(true),
             scope: "home".to_string(),
-        },
-    ]);
+        }],
+    );
     assert_eq!(txn.status, TransactionStatus::Planned);
     assert!(txn.file_changes.is_empty());
     assert!(txn.validation.is_none());
@@ -476,17 +498,49 @@ fn scope_display() {
 #[test]
 fn mutation_intent_variants() {
     let intents = vec![
-        MutationIntent::SetOption { path: "a".into(), value: serde_json::Value::Bool(true), scope: "home".into() },
-        MutationIntent::SetProfileDefault { path: "a".into(), value: serde_json::Value::Bool(true), profile: "workstation".into() },
-        MutationIntent::SetHostOverride { path: "a".into(), value: serde_json::Value::Bool(false), host: "pc".into() },
-        MutationIntent::ResetHostOverride { path: "a".into(), host: "pc".into() },
-        MutationIntent::EnableCapability { capability: "audio.pipewire".into(), requester: "steam".into() },
-        MutationIntent::DisableCapability { capability: "audio.pipewire".into(), requester: "steam".into() },
-        MutationIntent::AddRequest { capability: "audio.pipewire".into(), requester: "steam".into() },
-        MutationIntent::RemoveRequest { capability: "audio.pipewire".into(), requester: "steam".into() },
-        MutationIntent::CreateModule { name: "new-app".into(), kind: "program".into() },
+        MutationIntent::SetOption {
+            path: "a".into(),
+            value: serde_json::Value::Bool(true),
+            scope: "home".into(),
+        },
+        MutationIntent::SetProfileDefault {
+            path: "a".into(),
+            value: serde_json::Value::Bool(true),
+            profile: "workstation".into(),
+        },
+        MutationIntent::SetHostOverride {
+            path: "a".into(),
+            value: serde_json::Value::Bool(false),
+            host: "pc".into(),
+        },
+        MutationIntent::ResetHostOverride {
+            path: "a".into(),
+            host: "pc".into(),
+        },
+        MutationIntent::EnableCapability {
+            capability: "audio.pipewire".into(),
+            requester: "steam".into(),
+        },
+        MutationIntent::DisableCapability {
+            capability: "audio.pipewire".into(),
+            requester: "steam".into(),
+        },
+        MutationIntent::AddRequest {
+            capability: "audio.pipewire".into(),
+            requester: "steam".into(),
+        },
+        MutationIntent::RemoveRequest {
+            capability: "audio.pipewire".into(),
+            requester: "steam".into(),
+        },
+        MutationIntent::CreateModule {
+            name: "new-app".into(),
+            kind: "program".into(),
+        },
         MutationIntent::CreateHost { name: "vm".into() },
-        MutationIntent::CreateUser { name: "guest".into() },
+        MutationIntent::CreateUser {
+            name: "guest".into(),
+        },
     ];
     assert_eq!(intents.len(), 11);
 }

@@ -29,6 +29,12 @@ impl Assignment {
 
 pub struct SourceService;
 
+impl Default for SourceService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SourceService {
     pub fn new() -> Self {
         Self

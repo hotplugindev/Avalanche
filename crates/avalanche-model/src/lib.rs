@@ -24,7 +24,10 @@ pub use condition::{Condition, NixValue};
 pub use error::ModelError;
 pub use host::{Cpu, Desktop, Gpu, Hardware, Host, HostClass, HostRole, Shell};
 pub use json::JsonValue;
-pub use layer::{Layer, Priority, PRIORITY_DEFAULT, PRIORITY_FORCE, PRIORITY_NORMAL, PRIORITY_OVERRIDE, PRIORITY_VM_OVERRIDE};
+pub use layer::{
+    Layer, Priority, PRIORITY_DEFAULT, PRIORITY_FORCE, PRIORITY_NORMAL, PRIORITY_OVERRIDE,
+    PRIORITY_VM_OVERRIDE,
+};
 pub use module::{Module, ModuleId, ModuleKind};
 pub use option::{DefinitionType, EffectiveValue, NixType, OptionDefinition, OptionSchema};
 pub use ownership::{Ownership, OwnershipRole, OwnershipStatus};

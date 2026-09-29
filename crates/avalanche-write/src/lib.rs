@@ -15,6 +15,12 @@ pub enum WriteError {
 
 pub struct WriteService;
 
+impl Default for WriteService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WriteService {
     pub fn new() -> Self {
         Self

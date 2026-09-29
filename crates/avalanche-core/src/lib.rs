@@ -1,13 +1,13 @@
-use avalanche_model::{Repository, MutationIntent, Transaction};
-use avalanche_index::{IndexService, RepositoryIndex};
-use avalanche_write::{WriteService, WriteError};
-use avalanche_git::GitService;
 use avalanche_doctor::DoctorService;
-use avalanche_validate::ValidationService;
-use avalanche_ownership::OwnershipService;
+use avalanche_git::GitService;
 use avalanche_graph::GraphService;
+use avalanche_index::{IndexService, RepositoryIndex};
+use avalanche_model::{MutationIntent, Repository, Transaction};
 use avalanche_nix::NixService;
+use avalanche_ownership::OwnershipService;
 use avalanche_source::SourceService;
+use avalanche_validate::ValidationService;
+use avalanche_write::{WriteError, WriteService};
 
 pub struct ConfigurationEngine {
     pub index_service: IndexService,
@@ -41,17 +41,11 @@ impl ConfigurationEngine {
         self.index_service.build(repository)
     }
 
-    pub fn plan(
-        &self,
-        intents: Vec<MutationIntent>,
-    ) -> Result<Transaction, WriteError> {
+    pub fn plan(&self, intents: Vec<MutationIntent>) -> Result<Transaction, WriteError> {
         self.write_service.plan(intents)
     }
 
-    pub fn apply(
-        &mut self,
-        transaction: &mut Transaction,
-    ) -> Result<(), WriteError> {
+    pub fn apply(&mut self, transaction: &mut Transaction) -> Result<(), WriteError> {
         self.write_service.apply(transaction)
     }
 }

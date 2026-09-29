@@ -128,6 +128,12 @@ pub struct GraphService {
     graph: RequestGraph,
 }
 
+impl Default for GraphService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GraphService {
     pub fn new() -> Self {
         Self {

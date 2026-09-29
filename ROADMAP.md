@@ -43,11 +43,11 @@ Establish the project structure.
 
 - [x] Create Cargo workspace
 - [x] Create all core crates
-- [ ] Create Tauri desktop shell
-- [ ] Create frontend application
-- [ ] Establish development flake
-- [ ] Establish CI
-- [ ] Establish formatting/linting/test commands
+- [x] Create Tauri desktop shell
+- [x] Create frontend application
+- [x] Establish development flake
+- [x] Establish CI
+- [x] Establish formatting/linting/test commands
 
 ## Exit criteria
 

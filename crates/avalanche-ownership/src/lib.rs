@@ -69,15 +69,18 @@ impl OwnershipRegistry {
     }
 
     pub fn can_auto_edit(&self, option_path: &str) -> bool {
-        matches!(
-            self.resolve(option_path),
-            OwnershipStatus::Owned
-        )
+        matches!(self.resolve(option_path), OwnershipStatus::Owned)
     }
 }
 
 pub struct OwnershipService {
     registry: OwnershipRegistry,
+}
+
+impl Default for OwnershipService {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl OwnershipService {
