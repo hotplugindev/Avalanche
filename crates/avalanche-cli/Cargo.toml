@@ -1,0 +1,16 @@
+[package]
+name = "avalanche-cli"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "avalanche"
+path = "src/main.rs"
+
+[dependencies]
+avalanche-model = { path = "../avalanche-model" }
+avalanche-core = { path = "../avalanche-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }

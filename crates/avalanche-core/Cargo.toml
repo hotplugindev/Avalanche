@@ -1,0 +1,20 @@
+[package]
+name = "avalanche-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+avalanche-model = { path = "../avalanche-model" }
+avalanche-index = { path = "../avalanche-index" }
+avalanche-nix = { path = "../avalanche-nix" }
+avalanche-source = { path = "../avalanche-source" }
+avalanche-ownership = { path = "../avalanche-ownership" }
+avalanche-graph = { path = "../avalanche-graph" }
+avalanche-write = { path = "../avalanche-write" }
+avalanche-validate = { path = "../avalanche-validate" }
+avalanche-git = { path = "../avalanche-git" }
+avalanche-doctor = { path = "../avalanche-doctor" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
