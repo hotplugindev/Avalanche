@@ -827,7 +827,158 @@ Ambiguous scope     → require explicit choice
 
 ---
 
-# 31. Future Features
+# 31. Nix Engine
+
+The Nix engine provides reliable communication with the Nix package manager.
+
+## Process Abstraction
+
+All Nix interactions go through a structured process API with:
+
+- configurable binary path
+- configurable timeout
+- experimental feature flags (`nix-command flakes`)
+- structured error reporting
+
+## Evaluation
+
+Supports:
+
+- arbitrary expression evaluation
+- flake attribute evaluation
+- JSON decoding of results
+- Nix type inference
+
+## Option Extraction
+
+Extracts option schemas including:
+
+- type
+- default
+- description
+- example
+- internal flag
+- readOnly flag
+
+## Assertions
+
+Retrieves and evaluates host assertions, identifying failures before writes.
+
+## Host Evaluation
+
+- lists available NixOS configurations
+- evaluates host system information
+- evaluates per-host option values
+
+## Home Manager Evaluation
+
+- evaluates Home Manager configurations per user/host
+- extracts user-level option values
+
+## Flake Discovery
+
+- discovers flake inputs from lock file
+- identifies external module sources
+- excludes base dependencies from external module list
+
+## Validation
+
+- `nix flake check` for structural validation
+- `nix build` with dry-run support for build validation
+
+---
+
+# 32. Source Engine
+
+The source engine understands Nix source code structure.
+
+## Lexer
+
+Tokenizes Nix source into a stream with:
+
+- identifiers, keywords, numbers, strings, paths
+- operators and delimiters
+- search paths (`<nixpkgs>`)
+- source span tracking for every token
+
+## Parser
+
+Recursive descent parser producing a typed AST:
+
+- attribute sets with bindings
+- lists, lambdas, let/in, if/then/else
+- binary operators with correct precedence
+- function application
+- with/assert expressions
+- inherit statements
+- dynamic attribute paths
+
+## Source Spans
+
+Every AST node carries position information:
+
+- line and column of start
+- line and column of end
+- enables precise error reporting and targeted edits
+
+## Import Detection
+
+- extracts `import` expressions from parsed files
+- resolves relative and absolute paths
+- resolves directory imports (default.nix)
+- builds import graphs with cycle detection
+- classifies import context (top-level, list, let, attr value)
+
+## Assignment Extraction
+
+Walks the AST to extract all assignments with their:
+
+- dotted attribute path
+- value expression
+- source span
+- classification
+
+## Assignment Classification
+
+Assignments are classified as:
+
+- `DirectLiteral` — bool, int, float, string, path, list of literals
+- `DirectExpression` — identifiers, binary ops, known function calls (mkDefault, mkForce, import)
+- `GeneratedPattern` — recognized generated patterns
+- `Computed` — conditionals, lambdas, unknown function applications
+- `Unknown` — inherit, unrecognized structures
+
+Write policy:
+
+- DirectLiteral and GeneratedPattern allow automatic editing
+- DirectExpression requires understanding
+- Computed and Unknown use raw editing only
+
+## Formatting
+
+Pretty-prints AST back to Nix source:
+
+- consistent 2-space indentation
+- proper string escaping
+- correct operator spacing
+- multi-line attr sets and lists
+
+## Source Patch Generation
+
+Generates targeted source modifications:
+
+- value replacement at exact span
+- binding removal
+- binding insertion with correct indentation
+- multi-patch application with reverse-order safety
+
+## Exit Criteria
+
+Avalanche can answer "where is this value actually written?" without modifying the repository.
+
+---
+
+# 33. Future Features
 
 Potential future work:
 

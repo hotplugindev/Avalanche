@@ -249,6 +249,6 @@ avalanche capability enable audio.pipewire
 
 ## Status
 
-Avalanche is currently in architecture and implementation-planning phase.
+Phase 4 (Source Engine) is complete. Avalanche can parse Nix source files, extract assignments with source spans, classify expressions, detect imports, generate source patches, and answer "where is this value actually written?" without modifying the repository.
 
-The first implementation milestone is the repository contract and indexing engine, not the GUI.
+The next milestone is Phase 5 (Repository Index) — building the complete derived repository model.

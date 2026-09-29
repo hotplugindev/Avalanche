@@ -101,17 +101,17 @@ Reliably communicate with Nix.
 
 ## Tasks
 
-- [ ] Nix process abstraction
-- [ ] `nix eval`
-- [ ] `nix flake check`
-- [ ] `nix build`
-- [ ] JSON decoding
-- [ ] Nix type representation
-- [ ] option extraction
-- [ ] assertions
-- [ ] host evaluation
-- [ ] Home Manager evaluation
-- [ ] external flake discovery
+- [x] Nix process abstraction
+- [x] `nix eval`
+- [x] `nix flake check`
+- [x] `nix build`
+- [x] JSON decoding
+- [x] Nix type representation
+- [x] option extraction
+- [x] assertions
+- [x] host evaluation
+- [x] Home Manager evaluation
+- [x] external flake discovery
 
 ## Exit criteria
 
@@ -127,15 +127,15 @@ Understand Nix source code.
 
 ## Tasks
 
-- [ ] Parser integration
-- [ ] AST model
-- [ ] imports
-- [ ] assignments
-- [ ] source spans
-- [ ] expressions
-- [ ] assignment classification
-- [ ] formatting
-- [ ] source patch generation
+- [x] Parser integration
+- [x] AST model
+- [x] imports
+- [x] assignments
+- [x] source spans
+- [x] expressions
+- [x] assignment classification
+- [x] formatting
+- [x] source patch generation
 
 ## Exit criteria
 
