@@ -1,6 +1,7 @@
 pub mod application;
 pub mod capability;
 pub mod condition;
+pub mod contract;
 pub mod error;
 pub mod host;
 pub mod json;
@@ -21,6 +22,10 @@ pub mod validation;
 pub use application::{Application, ApplicationId};
 pub use capability::{Capability, CapabilityId};
 pub use condition::{Condition, NixValue};
+pub use contract::{
+    parse_requester, NamespaceContract, NamespaceKind, RepositoryContract, RequesterKind,
+    CURRENT_SCHEMA_VERSION,
+};
 pub use error::ModelError;
 pub use host::{Cpu, Desktop, Gpu, Hardware, Host, HostClass, HostRole, Shell};
 pub use json::JsonValue;

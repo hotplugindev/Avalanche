@@ -827,7 +827,91 @@ Ambiguous scope     → require explicit choice
 
 ---
 
-# 31. Nix Engine
+# 31. Repository Contract
+
+The repository contract makes a managed Nix repository explicit and predictable. It is defined in `schemas/contract.nix` and declared inside each repository via `gb.schemaVersion`.
+
+## Namespaces
+
+The contract registers every `gb.*` subtree with its scope, kind, and semantics:
+
+- `gb.schemaVersion` — conformance version
+- `gb.host.*` — typed host identity and hardware facts
+- `gb.user.*` — active user identity
+- `gb.requires.system.*` / `gb.requires.home.*` — capability request lists
+- `gb.programs.system.*` / `gb.home.programs.*` — typed application settings
+- `gb.home.desktop.*` — structured desktop configuration
+- `gb.debug.*` — diagnostic switches
+
+## Requester Naming
+
+Requester strings follow a canonical plural grammar:
+
+```text
+<kind>.<scope>[.<domain>].<name>
+```
+
+Kinds: `programs`, `profiles`, `capabilities`, `hosts`, `users`. Singular forms (`profile.`, `program.`, `host.`) are contract violations rejected by the doctor.
+
+## Ownership
+
+Ownership is an explicit declaration, never inferred from the nearest filename. One upstream option has exactly one owning module. Statuses: owned, unowned, wrongOwner, ambiguous, external.
+
+## Registration
+
+- Capabilities live in `modules/capabilities/<scope>/<domain>/<name>.nix` and activate on a non-empty request list or explicit enable.
+- Every module must be imported by an aggregate (`modules/aggregate/nixos.nix` or `home.nix`). No recursive auto-import.
+
+## Profile Semantics
+
+Profiles express intent. They request capabilities and set `mkDefault` values. They never own low-level implementation.
+
+## Host Override Semantics
+
+A host override is a definition at host priority. Reset to profile default deletes the host definition; it never writes `false`.
+
+## User Scoping
+
+Per-user configuration has an explicit source location: identity in `users/<username>.nix`, per-host overrides in `hosts/<host>/home/<username>.nix`. The shared `hosts/<host>/home.nix` is deprecated.
+
+## External Module Boundaries
+
+Options from external flake inputs are tagged `external`. Avalanche configures the local layer and never edits the dependency.
+
+---
+
+# 32. Repository Initialization
+
+`avalanche init` creates a conforming Avalanche-managed Nix repository from scratch.
+
+## What it generates
+
+- `flake.nix` with the standard output structure
+- `hosts/` skeleton with at least one host
+- `users/` skeleton with at least one user
+- `modules/aggregate/nixos.nix` and `home.nix`
+- `modules/core/` option declarations (host, user, requests, debug)
+- `gb.schemaVersion = 1` declaration
+- Git initialization with an initial commit
+
+## Idempotent re-init
+
+Running `avalanche init` on an existing conforming repository adds a new host or user without destroying existing configuration.
+
+## Validation
+
+The generated skeleton is validated against `schemas/contract.nix` before the command exits. A repository that fails validation is rolled back.
+
+## Exit criteria
+
+```bash
+avalanche init ~/my-config --host pc --user alice
+avalanche doctor  # zero errors
+```
+
+---
+
+# 33. Nix Engine
 
 The Nix engine provides reliable communication with the Nix package manager.
 
@@ -888,7 +972,7 @@ Retrieves and evaluates host assertions, identifying failures before writes.
 
 ---
 
-# 32. Source Engine
+# 34. Source Engine
 
 The source engine understands Nix source code structure.
 
@@ -978,7 +1062,7 @@ Avalanche can answer "where is this value actually written?" without modifying t
 
 ---
 
-# 33. Future Features
+# 35. Future Features
 
 Potential future work:
 

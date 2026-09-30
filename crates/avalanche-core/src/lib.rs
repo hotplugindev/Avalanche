@@ -1,7 +1,7 @@
 use avalanche_doctor::DoctorService;
 use avalanche_git::GitService;
 use avalanche_graph::GraphService;
-use avalanche_index::{IndexService, RepositoryIndex};
+use avalanche_index::{IndexResult, IndexService, RepositoryIndex};
 use avalanche_model::{MutationIntent, Repository, Transaction};
 use avalanche_nix::NixService;
 use avalanche_ownership::OwnershipService;
@@ -37,8 +37,8 @@ impl ConfigurationEngine {
         }
     }
 
-    pub fn index(&self, repository: Repository) -> RepositoryIndex {
-        self.index_service.build(repository)
+    pub fn index(&self, repository: &Repository) -> IndexResult<RepositoryIndex> {
+        self.index_service.build(repository, &self.nix_service)
     }
 
     pub fn plan(&self, intents: Vec<MutationIntent>) -> Result<Transaction, WriteError> {

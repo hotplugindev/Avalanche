@@ -227,6 +227,12 @@ avalanche doctor
 avalanche diff
 ```
 
+Repository creation:
+
+```bash
+avalanche init ~/my-config --host pc --user alice
+```
+
 Mutations eventually include:
 
 ```bash
@@ -248,6 +254,8 @@ avalanche capability enable audio.pipewire
 10. Repo Doctor proposes repairs instead of silently applying them.
 
 ## Status
+
+Phase 0 (Repository Contract) is complete. The contract is defined in `schemas/contract.nix`, mirrored in `avalanche-model`, and declared in managed repositories via `gb.schemaVersion`. It registers every `gb.*` namespace, fixes canonical plural requester naming, and makes ownership, registration, profile, host-override, user-scoping, and external-module boundaries explicit.
 
 Phase 4 (Source Engine) is complete. Avalanche can parse Nix source files, extract assignments with source spans, classify expressions, detect imports, generate source patches, and answer "where is this value actually written?" without modifying the repository.
 

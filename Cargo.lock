@@ -75,7 +75,8 @@ name = "avalanche-index"
 version = "0.1.0"
 dependencies = [
  "avalanche-model",
- "serde",
+ "avalanche-nix",
+ "avalanche-source",
  "serde_json",
  "thiserror",
 ]

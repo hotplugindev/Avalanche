@@ -105,6 +105,10 @@ Owner, requester, and implementer are separate concepts.
 
 No operation should partially modify the repository.
 
+## 3.7 The repository contract is explicit
+
+A managed repository declares conformance to `schemas/contract.nix` via `gb.schemaVersion`. The contract registers every `gb.*` namespace, fixes the canonical requester grammar, and makes ownership, registration, profile, host-override, user-scoping, and external-module semantics machine-readable. Avalanche validates a repository against this contract before indexing; a repository that violates it is rejected, not guessed at.
+
 ---
 
 # 4. Workspace

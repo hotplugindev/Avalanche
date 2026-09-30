@@ -14,18 +14,18 @@ Make the managed Nix repository explicit and predictable.
 
 ## Tasks
 
-- [ ] Add `gb.schemaVersion`
-- [ ] Document `gb.*` namespaces
-- [ ] Define ownership conventions
-- [ ] Define requester naming
-- [ ] Define capability registration
-- [ ] Define aggregate registration
-- [ ] Define profile semantics
-- [ ] Define host override semantics
-- [ ] Define user scoping
-- [ ] Define external module boundaries
-- [ ] Refactor multi-user Home Manager layout
-- [ ] Resolve known path/description inconsistencies
+- [x] Add `gb.schemaVersion`
+- [x] Document `gb.*` namespaces
+- [x] Define ownership conventions
+- [x] Define requester naming
+- [x] Define capability registration
+- [x] Define aggregate registration
+- [x] Define profile semantics
+- [x] Define host override semantics
+- [x] Define user scoping
+- [x] Define external module boundaries
+- [x] Refactor multi-user Home Manager layout
+- [x] Resolve known path/description inconsistencies
 
 ## Exit criteria
 
@@ -155,18 +155,18 @@ Build the complete derived repository model.
 
 ## Tasks
 
-- [ ] Static index
-- [ ] Semantic index
-- [ ] module index
-- [ ] option index
-- [ ] assignment index
-- [ ] request index
-- [ ] host index
-- [ ] user index
-- [ ] profile index
-- [ ] source location index
-- [ ] repository fingerprint
-- [ ] stale detection
+- [x] Static index
+- [x] Semantic index
+- [x] module index
+- [x] option index
+- [x] assignment index
+- [x] request index
+- [x] host index
+- [x] user index
+- [x] profile index
+- [x] source location index
+- [x] repository fingerprint
+- [x] stale detection
 
 ## Exit criteria
 
@@ -459,7 +459,36 @@ A new application can be generated without manual registration edits.
 
 ---
 
-# Phase 17 — Capability Manager
+# Phase 17 — Repository Initialization
+
+## Goal
+
+Create a conforming Avalanche-managed Nix repository from scratch.
+
+## Tasks
+
+- [ ] `avalanche init` CLI command
+- [ ] repository skeleton templates (flake.nix, hosts/, users/, modules/)
+- [ ] contract bootstrap (gb.schemaVersion declaration)
+- [ ] aggregate registration scaffolding
+- [ ] core option modules (host, user, requests, debug)
+- [ ] initial host creation (interactive or flag-driven)
+- [ ] initial user creation
+- [ ] git initialization
+- [ ] validation of generated skeleton against contract
+- [ ] idempotent re-init (add host/user to existing repo)
+
+## Exit criteria
+
+```bash
+avalanche init ~/my-config --host pc --user alice
+```
+
+produces a repository that passes `avalanche doctor` with zero errors and can be immediately indexed.
+
+---
+
+# Phase 18 — Capability Manager
 
 ## Goal
 
@@ -480,7 +509,7 @@ Capabilities can be created, enabled, disabled, inspected, and traced.
 
 ---
 
-# Phase 18 — Profiles
+# Phase 19 — Profiles
 
 ## Goal
 
@@ -503,7 +532,7 @@ Profile/default/override/effective semantics are completely supported.
 
 ---
 
-# Phase 19 — Hosts
+# Phase 20 — Hosts
 
 ## Goal
 
@@ -526,7 +555,7 @@ A host can be created and configured end-to-end.
 
 ---
 
-# Phase 20 — Users
+# Phase 21 — Users
 
 ## Goal
 
@@ -548,7 +577,7 @@ Multiple users can be independently managed.
 
 ---
 
-# Phase 21 — Generic Option Editor
+# Phase 22 — Generic Option Editor
 
 ## Goal
 
@@ -575,7 +604,7 @@ Most ordinary NixOS/Home Manager module options can be edited without writing Ni
 
 ---
 
-# Phase 22 — Computed Options
+# Phase 23 — Computed Options
 
 ## Goal
 
@@ -595,7 +624,7 @@ Avalanche never corrupts computed options by treating them as simple values.
 
 ---
 
-# Phase 23 — Specialized Desktop Editors
+# Phase 24 — Specialized Desktop Editors
 
 ## Order
 
@@ -610,7 +639,7 @@ Complex desktop configuration can be managed semantically rather than as raw str
 
 ---
 
-# Phase 24 — Raw Nix Editor
+# Phase 25 — Raw Nix Editor
 
 ## Goal
 
@@ -633,7 +662,7 @@ No supported configuration shape is completely inaccessible.
 
 ---
 
-# Phase 25 — Git
+# Phase 26 — Git
 
 ## Goal
 
@@ -657,7 +686,7 @@ Users can review and manage Avalanche changes through Git.
 
 ---
 
-# Phase 26 — Import / Export / Share
+# Phase 27 — Import / Export / Share
 
 ## Goal
 
@@ -679,7 +708,7 @@ Configuration can be shared without bypassing repository invariants.
 
 ---
 
-# Phase 27 — Hardening
+# Phase 28 — Hardening
 
 ## Goal
 
@@ -701,7 +730,7 @@ Prepare for real-world use.
 
 ---
 
-# Phase 28 — Release
+# Phase 29 — Release
 
 ## Release checklist
 
@@ -732,7 +761,7 @@ Prepare for real-world use.
 | M5 | Repo Doctor + read-only CLI |
 | M6 | Read-only desktop |
 | M7 | Transaction/write engine |
-| M8 | Applications + modules |
+| M8 | Applications + modules + repository init |
 | M9 | Capabilities + profiles |
 | M10 | Hosts + users |
 | M11 | Generic option editor |
