@@ -11,17 +11,46 @@ pub enum Expr {
     Ident(String),
     Attrs(Vec<Binding>),
     List(Vec<Expr>),
-    Let { bindings: Vec<Binding>, body: Box<Expr> },
-    If { cond: Box<Expr>, then_branch: Box<Expr>, else_branch: Box<Expr> },
-    Apply { func: Box<Expr>, arg: Box<Expr> },
-    Lambda { param: String, body: Box<Expr> },
+    Let {
+        bindings: Vec<Binding>,
+        body: Box<Expr>,
+    },
+    If {
+        cond: Box<Expr>,
+        then_branch: Box<Expr>,
+        else_branch: Box<Expr>,
+    },
+    Apply {
+        func: Box<Expr>,
+        arg: Box<Expr>,
+    },
+    Lambda {
+        param: String,
+        body: Box<Expr>,
+    },
     AttrPath(Vec<String>),
-    BinaryOp { op: BinOp, left: Box<Expr>, right: Box<Expr> },
-    HasAttr { expr: Box<Expr>, attr: Vec<String> },
+    BinaryOp {
+        op: BinOp,
+        left: Box<Expr>,
+        right: Box<Expr>,
+    },
+    HasAttr {
+        expr: Box<Expr>,
+        attr: Vec<String>,
+    },
     Negate(Box<Expr>),
-    With { expr: Box<Expr>, body: Box<Expr> },
-    Assert { cond: Box<Expr>, body: Box<Expr> },
-    Inherit { names: Vec<String>, from: Option<Box<Expr>> },
+    With {
+        expr: Box<Expr>,
+        body: Box<Expr>,
+    },
+    Assert {
+        cond: Box<Expr>,
+        body: Box<Expr>,
+    },
+    Inherit {
+        names: Vec<String>,
+        from: Option<Box<Expr>>,
+    },
 }
 
 impl Expr {
@@ -160,7 +189,7 @@ mod tests {
         assert!(Expr::Bool(true).is_literal());
         assert!(Expr::Int(42).is_literal());
         assert!(Expr::Str("hello".into()).is_literal());
-        assert!(Expr::Float(3.14).is_literal());
+        assert!(Expr::Float(3.25).is_literal());
         assert!(!Expr::Ident("foo".into()).is_literal());
     }
 

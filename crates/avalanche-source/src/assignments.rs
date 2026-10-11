@@ -41,11 +41,7 @@ pub fn extract_assignments_with_prefix(
     assignments
 }
 
-fn walk_bindings(
-    expr: &Expr,
-    prefix: &[String],
-    out: &mut Vec<ExtractedAssignment>,
-) {
+fn walk_bindings(expr: &Expr, prefix: &[String], out: &mut Vec<ExtractedAssignment>) {
     match expr {
         Expr::Attrs(bindings) => {
             for binding in bindings {
@@ -53,11 +49,8 @@ fn walk_bindings(
                     continue;
                 }
                 if let Some(value) = &binding.value {
-                    let full_path: Vec<String> = prefix
-                        .iter()
-                        .chain(binding.path.iter())
-                        .cloned()
-                        .collect();
+                    let full_path: Vec<String> =
+                        prefix.iter().chain(binding.path.iter()).cloned().collect();
 
                     let kind = classify_value(value);
                     out.push(ExtractedAssignment {
@@ -88,15 +81,19 @@ fn walk_bindings(
 
 pub fn classify_value(value: &Expr) -> AssignmentKind {
     match value {
-        Expr::Int(_)
-        | Expr::Float(_)
-        | Expr::Str(_)
-        | Expr::Bool(_) => AssignmentKind::DirectLiteral,
+        Expr::Int(_) | Expr::Float(_) | Expr::Str(_) | Expr::Bool(_) => {
+            AssignmentKind::DirectLiteral
+        }
 
         Expr::Path(_) => AssignmentKind::DirectLiteral,
 
         Expr::List(items) => {
-            if items.iter().all(|i| matches!(i, Expr::Str(_) | Expr::Int(_) | Expr::Float(_) | Expr::Bool(_) | Expr::Path(_))) {
+            if items.iter().all(|i| {
+                matches!(
+                    i,
+                    Expr::Str(_) | Expr::Int(_) | Expr::Float(_) | Expr::Bool(_) | Expr::Path(_)
+                )
+            }) {
                 AssignmentKind::DirectLiteral
             } else {
                 AssignmentKind::DirectExpression
@@ -106,10 +103,20 @@ pub fn classify_value(value: &Expr) -> AssignmentKind {
         Expr::Attrs(bindings) => {
             if bindings.iter().all(|b| {
                 b.inherit
-                    || b
-                        .value
+                    || b.value
                         .as_ref()
-                        .map(|v| matches!(v, Expr::Int(_) | Expr::Float(_) | Expr::Str(_) | Expr::Bool(_) | Expr::Path(_) | Expr::Attrs(_) | Expr::List(_)))
+                        .map(|v| {
+                            matches!(
+                                v,
+                                Expr::Int(_)
+                                    | Expr::Float(_)
+                                    | Expr::Str(_)
+                                    | Expr::Bool(_)
+                                    | Expr::Path(_)
+                                    | Expr::Attrs(_)
+                                    | Expr::List(_)
+                            )
+                        })
                         .unwrap_or(false)
             }) {
                 AssignmentKind::DirectExpression
@@ -124,9 +131,11 @@ pub fn classify_value(value: &Expr) -> AssignmentKind {
 
         Expr::Apply { func, .. } => {
             if let Expr::Ident(name) = func.as_ref() {
-                if name == "mkDefault" || name == "mkForce" || name == "mkOverride" {
-                    AssignmentKind::DirectExpression
-                } else if name == "import" {
+                if name == "mkDefault"
+                    || name == "mkForce"
+                    || name == "mkOverride"
+                    || name == "import"
+                {
                     AssignmentKind::DirectExpression
                 } else {
                     AssignmentKind::Computed
@@ -198,19 +207,31 @@ mod tests {
 
     #[test]
     fn classify_literal_values() {
-        assert_eq!(classify_value(&Expr::Bool(true)), AssignmentKind::DirectLiteral);
-        assert_eq!(classify_value(&Expr::Int(42)), AssignmentKind::DirectLiteral);
-        assert_eq!(classify_value(&Expr::Float(3.14)), AssignmentKind::DirectLiteral);
-        assert_eq!(classify_value(&Expr::Str("hello".into())), AssignmentKind::DirectLiteral);
-        assert_eq!(classify_value(&Expr::Path("./foo.nix".into())), AssignmentKind::DirectLiteral);
+        assert_eq!(
+            classify_value(&Expr::Bool(true)),
+            AssignmentKind::DirectLiteral
+        );
+        assert_eq!(
+            classify_value(&Expr::Int(42)),
+            AssignmentKind::DirectLiteral
+        );
+        assert_eq!(
+            classify_value(&Expr::Float(3.25)),
+            AssignmentKind::DirectLiteral
+        );
+        assert_eq!(
+            classify_value(&Expr::Str("hello".into())),
+            AssignmentKind::DirectLiteral
+        );
+        assert_eq!(
+            classify_value(&Expr::Path("./foo.nix".into())),
+            AssignmentKind::DirectLiteral
+        );
     }
 
     #[test]
     fn classify_list_of_literals() {
-        let list = Expr::List(vec![
-            Expr::Str("a".into()),
-            Expr::Str("b".into()),
-        ]);
+        let list = Expr::List(vec![Expr::Str("a".into()), Expr::Str("b".into())]);
         assert_eq!(classify_value(&list), AssignmentKind::DirectLiteral);
     }
 
@@ -252,7 +273,10 @@ mod tests {
 
     #[test]
     fn find_by_prefix() {
-        let file = parse("{ services.a.enable = true; services.b.enable = false; networking.enable = true; }").unwrap();
+        let file = parse(
+            "{ services.a.enable = true; services.b.enable = false; networking.enable = true; }",
+        )
+        .unwrap();
         let assignments = extract_assignments(&file);
         let services = find_assignments_by_prefix(&assignments, "services");
         assert_eq!(services.len(), 2);

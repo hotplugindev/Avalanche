@@ -39,22 +39,16 @@ fn format_expr_inner(expr: &Expr, indent: usize) -> String {
             format_apply_target(func, indent),
             format_apply_target(arg, indent)
         ),
-        Expr::Lambda { param, body } => format!(
-            "{}: {}",
-            param,
-            format_expr_inner(body, indent)
-        ),
+        Expr::Lambda { param, body } => format!("{}: {}", param, format_expr_inner(body, indent)),
         Expr::BinaryOp { op, left, right } => format!(
             "{} {} {}",
             format_apply_target(left, indent),
             op.as_str(),
             format_apply_target(right, indent)
         ),
-        Expr::HasAttr { expr: e, attr } => format!(
-            "{} ? {}",
-            format_apply_target(e, indent),
-            attr.join(".")
-        ),
+        Expr::HasAttr { expr: e, attr } => {
+            format!("{} ? {}", format_apply_target(e, indent), attr.join("."))
+        }
         Expr::Negate(inner) => format!("!{}", format_expr_inner(inner, indent)),
         Expr::With { expr: e, body } => format!(
             "with {}; {}",
@@ -68,7 +62,11 @@ fn format_expr_inner(expr: &Expr, indent: usize) -> String {
         ),
         Expr::Inherit { names, from } => {
             if let Some(from_expr) = from {
-                format!("inherit ({}) {};", format_expr_inner(from_expr, indent), names.join(" "))
+                format!(
+                    "inherit ({}) {};",
+                    format_expr_inner(from_expr, indent),
+                    names.join(" ")
+                )
             } else {
                 format!("inherit {};", names.join(" "))
             }
@@ -136,15 +134,17 @@ fn format_list(items: &[Expr], indent: usize) -> String {
     let all_simple = items.iter().all(|i| {
         matches!(
             i,
-            Expr::Int(_) | Expr::Float(_) | Expr::Str(_) | Expr::Bool(_) | Expr::Path(_) | Expr::Ident(_)
+            Expr::Int(_)
+                | Expr::Float(_)
+                | Expr::Str(_)
+                | Expr::Bool(_)
+                | Expr::Path(_)
+                | Expr::Ident(_)
         )
     });
 
     if all_simple {
-        let parts: Vec<String> = items
-            .iter()
-            .map(|i| format_expr_inner(i, indent))
-            .collect();
+        let parts: Vec<String> = items.iter().map(|i| format_expr_inner(i, indent)).collect();
         format!("[ {} ]", parts.join(" "))
     } else {
         let inner_indent = indent + 1;
@@ -278,10 +278,7 @@ mod tests {
 
     #[test]
     fn format_list_of_strings() {
-        let list = Expr::List(vec![
-            Expr::Str("a".into()),
-            Expr::Str("b".into()),
-        ]);
+        let list = Expr::List(vec![Expr::Str("a".into()), Expr::Str("b".into())]);
         assert_eq!(format_expr(&list), "[ \"a\" \"b\" ]");
     }
 
@@ -347,7 +344,7 @@ mod tests {
 
     #[test]
     fn format_float_value() {
-        assert_eq!(format_expr(&Expr::Float(3.14)), "3.14");
+        assert_eq!(format_expr(&Expr::Float(3.25)), "3.25");
         assert_eq!(format_expr(&Expr::Float(1.0)), "1.0");
     }
 }

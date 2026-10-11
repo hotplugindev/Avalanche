@@ -11,11 +11,7 @@ pub struct BuildResult {
     pub stderr: String,
 }
 
-pub fn build(
-    process: &NixProcess,
-    repo_path: &Path,
-    attribute: &str,
-) -> NixResult<BuildResult> {
+pub fn build(process: &NixProcess, repo_path: &Path, attribute: &str) -> NixResult<BuildResult> {
     let args = ["build", "--no-link", "--print-out-paths", attribute];
     let output = process.run(&args, repo_path)?;
 

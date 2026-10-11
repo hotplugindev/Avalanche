@@ -260,6 +260,14 @@ workstation profile
     noisetorch
 ```
 
+Implemented in `avalanche-graph`. `build_request_graph` derives nodes and edges from the
+repository index: capability/program layers contribute `Implements` and `Owns` edges,
+host/user layers contribute `Overrides` edges, `gb.requires.*` provenance contributes
+`Requests` edges (falling back to semantic resolved requests when present), and the import
+graph contributes `Imports` edges. Edges are deduplicated and `why` is cycle-safe, returning
+root-first causal chains so `avalanche why audio.pipewire` resolves
+`profiles.system.workstation → audio.pipewire` from static analysis alone.
+
 ---
 
 # 8. Profiles
@@ -470,6 +478,11 @@ Effective:
     false
 ```
 
+This is exposed through `avalanche_model::Provenance` and
+`avalanche_index::RepositoryIndex::provenance_for`. `Provenance` retains all
+definitions, identifies the winning definition, lists overridden definitions,
+and projects merged list/attribute values into per-contribution provenance.
+
 ---
 
 # 15. Ownership
@@ -487,6 +500,23 @@ Ownership states:
 - External
 
 Ambiguous ownership blocks automatic edits.
+
+Ownership is derived from the repository model, never inferred from the
+nearest filename. `avalanche_ownership::build_ownership_registry` consumes
+the provenance index, the registered module set, and the resolved request
+cache to classify every option:
+
+- a single registered capability/program module owns the option → `Owned`
+- two or more distinct registered modules contribute → `Ambiguous`
+- a capability/program-layer value comes from an unregistered file → `WrongOwner`
+- all contributions originate from external modules → `External`
+- no owning module exists → `Unowned`
+
+The registry also exposes requester and implementation lookups so the
+engine can answer "who requests this?" and "which module implements this?"
+without re-parsing Nix. `ConfigurationEngine::ownership` builds the
+registry from an index, and `load_ownership` installs it for downstream
+write gating. Only `Owned` options are auto-editable.
 
 ---
 
@@ -551,6 +581,13 @@ Repo Doctor checks:
 - missing implementations
 
 Known repository issues should become regression tests.
+
+The doctor runs eleven structural checks over the derived index: schema
+declaration and `gb.*` namespace validity, import resolution, aggregate
+registration, orphan detection, ownership classification (duplicate,
+ambiguous, wrong, external, missing), option-path/file drift, copy-paste
+descriptions, empty profiles, requester-grammar violations, and untracked
+capability definitions. Each finding names the offending option and/or file.
 
 ---
 
@@ -620,6 +657,15 @@ Confirmation
 Apply
 ```
 
+Current implementation (Phases 12–13): `plan_mutation` performs
+fingerprint/staleness rejection, ownership gating, computed/unknown refusal
+and intent resolution; `execute_mutation` additionally applies the plan
+through a `FileSource`, re-parses every touched file (Tier 1 structural
+validation) and rolls back all writes if any step fails, returning an
+`Applied` `Transaction` carrying the diff and validation report. `nix eval`
+(Tier 2), `nix flake check` (Tier 3), build (Tier 4) and interactive
+confirmation are deferred to Phases 14+.
+
 ---
 
 # 20. Safe Source Editing
@@ -663,6 +709,20 @@ Validation tiers:
 
 - expensive `nix build`
 - full host validation
+
+### Implementation status
+
+Tier 1 (structural) is enforced inside every transaction: `execute_mutation`
+parses each planned file before writing (a plan that would produce unparseable
+Nix is rejected and the repository is left untouched) and re-checks the content
+after writing, rolling back on failure. Every applied `Transaction` therefore
+carries an explicit `ValidationReport` with `tier = structural`.
+
+Tier 2 evaluators (`nix eval`, assertions) and Tier 3 (`nix flake check`) are
+implemented in `avalanche-validate` and exposed through
+`ConfigurationEngine::validate_transaction`, but they are opt-in rather than
+auto-invoked on every mutation: running them requires a real Nix toolchain and
+Avalanche never claims an evaluation it did not actually perform.
 
 ---
 
@@ -778,22 +838,56 @@ Results indicate the object type.
 
 # 28. CLI
 
-The CLI uses exactly the same Rust engine.
+The CLI uses exactly the same Rust engine. It is a thin adapter over
+`ConfigurationEngine`: it consumes structured index data, submits read-only
+queries, and renders text or JSON. It never parses Nix, determines ownership,
+decides target files, performs Git mutations, or implements validation semantics.
 
-Examples:
+Global flags:
+
+- `-r, --repo <PATH>` — repository path (default `.`)
+- `--json` — emit machine-readable JSON
+- `--nix` — use the full Nix-evaluation index (default: static index, no Nix required)
+- `-h, --help` — print help
+
+Commands:
 
 ```bash
 avalanche inspect host pc
-avalanche inspect app firefox
+avalanche inspect user hotplugin
+avalanche inspect profile workstation
+avalanche inspect option services.pipewire.enable
 avalanche inspect capability audio.pipewire
+avalanche inspect program git
+avalanche inspect module pipewire
 
 avalanche why audio.pipewire
-avalanche dependents audio.pipewire
+avalanche why services.pipewire.enable
+avalanche dependents profiles.system.workstation
 avalanche owners programs.git
 
 avalanche doctor
 avalanche diff
 ```
+
+`inspect <kind>` resolves against the derived index: hosts/users/profiles by name,
+options by provenance + schema (showing the effective definition and every
+contributing definition with layer/type/value/source-span), and modules by kind
+(`capability|program|desktop|aggregate|core|module`) with the options each defines.
+
+`why` answers the request-graph question: for a capability it lists every requester
+chain (`profile -> … -> capability`); for an option it walks the owning module's
+requesters. `dependents` inverts the request edges. `owners` answers the ownership
+question (`who owns this upstream setting?`) with the owner module, kind, status,
+and contributing files.
+
+`doctor` runs the structural checks and repair-proposal system; it exits non-zero
+when errors are present so it can gate automation. `diff` shows the working-tree
+diff via the Git service.
+
+Every command supports `--json` for scripting. The default static index means the
+CLI is useful on a repository without a working Nix evaluation; `--nix` adds
+effective values, assertions, and flake inputs.
 
 ---
 

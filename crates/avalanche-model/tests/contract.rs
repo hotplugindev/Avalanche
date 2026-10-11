@@ -1,4 +1,6 @@
-use avalanche_model::contract::{parse_requester, RepositoryContract, RequesterKind, CURRENT_SCHEMA_VERSION};
+use avalanche_model::contract::{
+    parse_requester, RepositoryContract, RequesterKind, CURRENT_SCHEMA_VERSION,
+};
 
 #[test]
 fn current_schema_version_is_one() {
@@ -85,7 +87,11 @@ fn ownership_is_never_filename_inferred() {
 fn requester_kinds_are_plural() {
     let c = RepositoryContract::v1();
     for kind in &c.requester_kinds {
-        assert!(kind.ends_with('s'), "requester kind must be plural: {}", kind);
+        assert!(
+            kind.ends_with('s'),
+            "requester kind must be plural: {}",
+            kind
+        );
     }
     assert_eq!(RequesterKind::Program.plural(), "programs");
     assert_eq!(RequesterKind::Profile.plural(), "profiles");

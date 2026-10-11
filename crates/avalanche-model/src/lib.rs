@@ -37,11 +37,14 @@ pub use module::{Module, ModuleId, ModuleKind};
 pub use option::{DefinitionType, EffectiveValue, NixType, OptionDefinition, OptionSchema};
 pub use ownership::{Ownership, OwnershipRole, OwnershipStatus};
 pub use profile::{Profile, ProfileId};
-pub use provenance::Provenance;
+pub use provenance::{Contribution, Provenance};
 pub use repository::{Fingerprint, Repository};
 pub use request::{Request, ResolvedRequest};
 pub use scope::Scope;
 pub use source::{Position, SourceLocation, SourceSpan};
-pub use transaction::{FileChange, MutationIntent, Transaction, TransactionStatus};
+pub use transaction::{
+    EditKind, FileChange, MutationIntent, MutationPlan, RenderHint, ResolvedEdit, Transaction,
+    TransactionStatus,
+};
 pub use user::User;
 pub use validation::{ValidationFinding, ValidationReport, ValidationSeverity, ValidationTier};

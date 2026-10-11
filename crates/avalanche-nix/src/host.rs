@@ -24,9 +24,10 @@ pub fn list_hosts(process: &NixProcess, repo_path: &Path) -> NixResult<Vec<Strin
         });
     }
 
-    let json: Value = serde_json::from_str(&output.stdout).map_err(|e| NixError::JsonDecodeFailed {
-        reason: e.to_string(),
-    })?;
+    let json: Value =
+        serde_json::from_str(&output.stdout).map_err(|e| NixError::JsonDecodeFailed {
+            reason: e.to_string(),
+        })?;
 
     Ok(json
         .as_array()
@@ -38,11 +39,7 @@ pub fn list_hosts(process: &NixProcess, repo_path: &Path) -> NixResult<Vec<Strin
         .unwrap_or_default())
 }
 
-pub fn eval_host(
-    process: &NixProcess,
-    repo_path: &Path,
-    host: &str,
-) -> NixResult<HostEvalResult> {
+pub fn eval_host(process: &NixProcess, repo_path: &Path, host: &str) -> NixResult<HostEvalResult> {
     let attr = format!(".#nixosConfigurations.{host}");
     let apply = r#"cfg: {
   system = (if cfg ? pkgs.stdenv.hostPlatform.system then cfg.pkgs.stdenv.hostPlatform.system else "unknown");
@@ -57,10 +54,11 @@ pub fn eval_host(
         });
     }
 
-    let json: Value = serde_json::from_str(&output.stdout).map_err(|e| NixError::HostEvalFailed {
-        host: host.to_string(),
-        reason: e.to_string(),
-    })?;
+    let json: Value =
+        serde_json::from_str(&output.stdout).map_err(|e| NixError::HostEvalFailed {
+            host: host.to_string(),
+            reason: e.to_string(),
+        })?;
 
     let system = json
         .get("system")
@@ -110,9 +108,10 @@ pub fn list_home_configs(process: &NixProcess, repo_path: &Path) -> NixResult<Ve
         });
     }
 
-    let json: Value = serde_json::from_str(&output.stdout).map_err(|e| NixError::JsonDecodeFailed {
-        reason: e.to_string(),
-    })?;
+    let json: Value =
+        serde_json::from_str(&output.stdout).map_err(|e| NixError::JsonDecodeFailed {
+            reason: e.to_string(),
+        })?;
 
     Ok(json
         .as_array()

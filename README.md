@@ -259,4 +259,10 @@ Phase 0 (Repository Contract) is complete. The contract is defined in `schemas/c
 
 Phase 4 (Source Engine) is complete. Avalanche can parse Nix source files, extract assignments with source spans, classify expressions, detect imports, generate source patches, and answer "where is this value actually written?" without modifying the repository.
 
-The next milestone is Phase 5 (Repository Index) — building the complete derived repository model.
+Phase 5 (Repository Index) is complete. Avalanche builds a derived repository index from static source analysis and Nix evaluation, with fingerprint-based stale detection.
+
+Phase 6 (Provenance) is complete. Definitions are first-class: `avalanche-model::Provenance` retains every definition's source file, span, layer, priority, host, user, profile, condition, and definition type, identifies the winning definition, lists overridden definitions, and projects merged list/attribute values into per-contribution provenance. The index exposes this through `RepositoryIndex::provenance_for`, so Avalanche can explain why an effective value exists.
+
+Phase 6 (Provenance) is complete. Avalanche retains first-class definitions for every option, preserving source file, source span, layer, priority, host, user, profile, condition, definition type, and merged-value contribution provenance. It can explain why an effective value exists and which definition wins.
+
+The next milestone is Phase 7 (Ownership) — implementing explicit ownership resolution.

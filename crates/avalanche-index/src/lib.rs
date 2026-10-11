@@ -1,10 +1,12 @@
 pub mod error;
 pub mod fingerprint;
+pub mod provenance_index;
 pub mod semantic_index;
 pub mod static_index;
 
 pub use error::{IndexError, IndexResult};
 pub use fingerprint::{compute_fingerprint, is_stale, INDEX_SCHEMA_VERSION};
+pub use provenance_index::build_provenance_index;
 pub use semantic_index::{build_semantic_index, SemanticIndex};
 pub use static_index::{build_static_index, ParsedFile, StaticIndex};
 
@@ -14,7 +16,7 @@ use std::path::Path;
 use avalanche_model::repository::{Fingerprint, Repository};
 use avalanche_model::{
     Application, Capability, EffectiveValue, Host, Module, OptionDefinition, OptionSchema, Profile,
-    User,
+    Provenance, User,
 };
 use avalanche_nix::NixService;
 use avalanche_source::SourceService;
@@ -25,6 +27,7 @@ pub struct RepositoryIndex {
     pub options: HashMap<String, OptionSchema>,
     pub definitions: HashMap<String, Vec<OptionDefinition>>,
     pub effective: HashMap<String, EffectiveValue>,
+    pub provenance: HashMap<String, Provenance>,
     pub capabilities: Vec<Capability>,
     pub applications: Vec<Application>,
     pub profiles: Vec<Profile>,
@@ -44,11 +47,17 @@ pub struct RepositoryIndex {
 
 impl RepositoryIndex {
     pub fn option(&self, path: &str) -> Option<&OptionSchema> {
-        self.options.get(path).or_else(|| self.semantic_index.schema_for(path))
+        self.options
+            .get(path)
+            .or_else(|| self.semantic_index.schema_for(path))
     }
 
     pub fn definitions_for(&self, path: &str) -> Option<&Vec<OptionDefinition>> {
         self.definitions.get(path)
+    }
+
+    pub fn provenance_for(&self, path: &str) -> Option<&Provenance> {
+        self.provenance.get(path)
     }
 
     pub fn effective_value(&self, path: &str) -> Option<&EffectiveValue> {
@@ -66,10 +75,7 @@ impl RepositoryIndex {
     }
 
     pub fn imports_for(&self, file: &str) -> &[String] {
-        self.imports
-            .get(file)
-            .map(|v| v.as_slice())
-            .unwrap_or(&[])
+        self.imports.get(file).map(|v| v.as_slice()).unwrap_or(&[])
     }
 
     pub fn assertions_for_host(&self, host: &str) -> &[avalanche_nix::Assertion] {
@@ -133,11 +139,7 @@ impl IndexService {
         }
     }
 
-    pub fn build(
-        &self,
-        repository: &Repository,
-        nix: &NixService,
-    ) -> IndexResult<RepositoryIndex> {
+    pub fn build(&self, repository: &Repository, nix: &NixService) -> IndexResult<RepositoryIndex> {
         let repo_path = Path::new(&repository.root);
 
         let fp = compute_fingerprint(repo_path)?;
@@ -168,32 +170,18 @@ impl IndexService {
             effective.insert(path.clone(), ev.clone());
         }
 
-        let mut definitions = HashMap::new();
-        for (path, assignments) in &static_idx.assignments {
-            let defs: Vec<OptionDefinition> = assignments
-                .iter()
-                .map(|a| OptionDefinition {
-                    option_path: path.clone(),
-                    value: None,
-                    source: a.location.clone(),
-                    priority: avalanche_model::Priority::normal(),
-                    layer: avalanche_model::Layer::Host,
-                    scope: avalanche_model::Scope::System,
-                    host: None,
-                    user: None,
-                    profile: None,
-                    condition: None,
-                    definition_type: avalanche_model::DefinitionType::Literal,
-                })
-                .collect();
-            definitions.insert(path.clone(), defs);
-        }
+        let provenance = build_provenance_index(&static_idx, &semantic_idx);
+        let definitions: HashMap<String, Vec<OptionDefinition>> = provenance
+            .iter()
+            .map(|(path, prov)| (path.clone(), prov.definitions.clone()))
+            .collect();
 
         Ok(RepositoryIndex {
             repository: repository.clone(),
             options: semantic_idx.schemas.clone(),
             definitions,
             effective,
+            provenance,
             capabilities,
             applications: Vec::new(),
             profiles,
@@ -218,32 +206,18 @@ impl IndexService {
         let static_idx = build_static_index(repo_path, &self.source)?;
         let semantic_idx = SemanticIndex::empty();
 
-        let mut definitions = HashMap::new();
-        for (path, assignments) in &static_idx.assignments {
-            let defs: Vec<OptionDefinition> = assignments
-                .iter()
-                .map(|a| OptionDefinition {
-                    option_path: path.clone(),
-                    value: None,
-                    source: a.location.clone(),
-                    priority: avalanche_model::Priority::normal(),
-                    layer: avalanche_model::Layer::Host,
-                    scope: avalanche_model::Scope::System,
-                    host: None,
-                    user: None,
-                    profile: None,
-                    condition: None,
-                    definition_type: avalanche_model::DefinitionType::Literal,
-                })
-                .collect();
-            definitions.insert(path.clone(), defs);
-        }
+        let provenance = build_provenance_index(&static_idx, &semantic_idx);
+        let definitions: HashMap<String, Vec<OptionDefinition>> = provenance
+            .iter()
+            .map(|(path, prov)| (path.clone(), prov.definitions.clone()))
+            .collect();
 
         Ok(RepositoryIndex {
             repository: repository.clone(),
             options: HashMap::new(),
             definitions,
             effective: HashMap::new(),
+            provenance,
             capabilities: Vec::new(),
             applications: Vec::new(),
             profiles: repository.profiles.clone(),

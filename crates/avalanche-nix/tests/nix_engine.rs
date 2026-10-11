@@ -131,7 +131,9 @@ fn eval_host_option_gb_schema_version() {
         return;
     }
     let svc = service();
-    let result = svc.eval_host_option("testhost", "gb.schemaVersion").unwrap();
+    let result = svc
+        .eval_host_option("testhost", "gb.schemaVersion")
+        .unwrap();
     assert_eq!(result, serde_json::json!(1));
 }
 
@@ -215,11 +217,10 @@ fn eval_flake_attr_test_values() {
         return;
     }
     let svc = service();
-    let result =
-        avalanche_nix::eval_attr(svc.process(), svc.repo_path(), ".#testValues").unwrap();
+    let result = avalanche_nix::eval_attr(svc.process(), svc.repo_path(), ".#testValues").unwrap();
     assert_eq!(result["bool"], true);
     assert_eq!(result["int"], 42);
-    assert_eq!(result["float"], 3.14);
+    assert_eq!(result["float"], 2.5);
     assert_eq!(result["str"], "hello");
     assert_eq!(result["list"], serde_json::json!([1, 2, 3]));
     assert_eq!(result["attrs"]["a"], 1);
@@ -232,12 +233,9 @@ fn eval_flake_attr_nested() {
         return;
     }
     let svc = service();
-    let result = avalanche_nix::eval_attr(
-        svc.process(),
-        svc.repo_path(),
-        ".#testValues.nested.x.y.z",
-    )
-    .unwrap();
+    let result =
+        avalanche_nix::eval_attr(svc.process(), svc.repo_path(), ".#testValues.nested.x.y.z")
+            .unwrap();
     assert_eq!(result, serde_json::Value::Bool(true));
 }
 
@@ -248,19 +246,10 @@ fn nix_type_inference() {
 
     assert_eq!(infer_nix_type(&serde_json::json!(true)), NixType::Bool);
     assert_eq!(infer_nix_type(&serde_json::json!(42)), NixType::Int);
-    assert_eq!(infer_nix_type(&serde_json::json!(3.14)), NixType::Float);
-    assert_eq!(
-        infer_nix_type(&serde_json::json!("hello")),
-        NixType::Str
-    );
-    assert_eq!(
-        infer_nix_type(&serde_json::json!([1, 2, 3])),
-        NixType::List
-    );
-    assert_eq!(
-        infer_nix_type(&serde_json::json!({"a": 1})),
-        NixType::Attrs
-    );
+    assert_eq!(infer_nix_type(&serde_json::json!(2.5)), NixType::Float);
+    assert_eq!(infer_nix_type(&serde_json::json!("hello")), NixType::Str);
+    assert_eq!(infer_nix_type(&serde_json::json!([1, 2, 3])), NixType::List);
+    assert_eq!(infer_nix_type(&serde_json::json!({"a": 1})), NixType::Attrs);
     assert_eq!(
         infer_nix_type(&serde_json::json!({"_type": "derivation", "name": "foo"})),
         NixType::Package

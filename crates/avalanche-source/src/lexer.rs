@@ -223,7 +223,10 @@ impl<'a> Lexer<'a> {
             if c.is_ascii_digit() {
                 text.push(c);
                 self.advance();
-            } else if c == '.' && !is_float && self.peek_ahead(1).map_or(false, |n| n.is_ascii_digit()) {
+            } else if c == '.'
+                && !is_float
+                && self.peek_ahead(1).is_some_and(|n| n.is_ascii_digit())
+            {
                 is_float = true;
                 text.push(c);
                 self.advance();
@@ -232,7 +235,11 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        let kind = if is_float { TokenKind::Float } else { TokenKind::Int };
+        let kind = if is_float {
+            TokenKind::Float
+        } else {
+            TokenKind::Int
+        };
         (text, kind)
     }
 
@@ -245,7 +252,8 @@ impl<'a> Lexer<'a> {
 
         while let Some(c) = self.peek() {
             if is_path_start {
-                if c.is_alphanumeric() || c == '_' || c == '-' || c == '.' || c == '/' || c == '\'' {
+                if c.is_alphanumeric() || c == '_' || c == '-' || c == '.' || c == '/' || c == '\''
+                {
                     text.push(c);
                     self.advance();
                 } else {
@@ -263,10 +271,19 @@ impl<'a> Lexer<'a> {
 
         if is_path_start {
             (text, TokenKind::Path)
-        } else if text == "true" || text == "false" || text == "null"
-            || text == "let" || text == "in" || text == "if" || text == "then"
-            || text == "else" || text == "with" || text == "assert" || text == "or"
-            || text == "inherit" || text == "rec"
+        } else if text == "true"
+            || text == "false"
+            || text == "null"
+            || text == "let"
+            || text == "in"
+            || text == "if"
+            || text == "then"
+            || text == "else"
+            || text == "with"
+            || text == "assert"
+            || text == "or"
+            || text == "inherit"
+            || text == "rec"
         {
             (text, TokenKind::Keyword)
         } else {
@@ -304,23 +321,97 @@ impl<'a> Lexer<'a> {
 
             let ch = match self.peek() {
                 None => {
-                    tokens.push(Token::new(TokenKind::Eof, "", SourceSpan::new(start, start)));
+                    tokens.push(Token::new(
+                        TokenKind::Eof,
+                        "",
+                        SourceSpan::new(start, start),
+                    ));
                     return Ok(tokens);
                 }
                 Some(c) => c,
             };
 
             let token = match ch {
-                '{' => { self.advance(); Token::new(TokenKind::LBrace, "{", SourceSpan::new(start, self.current_pos())) }
-                '}' => { self.advance(); Token::new(TokenKind::RBrace, "}", SourceSpan::new(start, self.current_pos())) }
-                '[' => { self.advance(); Token::new(TokenKind::LBracket, "[", SourceSpan::new(start, self.current_pos())) }
-                ']' => { self.advance(); Token::new(TokenKind::RBracket, "]", SourceSpan::new(start, self.current_pos())) }
-                '(' => { self.advance(); Token::new(TokenKind::LParen, "(", SourceSpan::new(start, self.current_pos())) }
-                ')' => { self.advance(); Token::new(TokenKind::RParen, ")", SourceSpan::new(start, self.current_pos())) }
-                ';' => { self.advance(); Token::new(TokenKind::Semi, ";", SourceSpan::new(start, self.current_pos())) }
-                ':' => { self.advance(); Token::new(TokenKind::Colon, ":", SourceSpan::new(start, self.current_pos())) }
-                ',' => { self.advance(); Token::new(TokenKind::Comma, ",", SourceSpan::new(start, self.current_pos())) }
-                '@' => { self.advance(); Token::new(TokenKind::At, "@", SourceSpan::new(start, self.current_pos())) }
+                '{' => {
+                    self.advance();
+                    Token::new(
+                        TokenKind::LBrace,
+                        "{",
+                        SourceSpan::new(start, self.current_pos()),
+                    )
+                }
+                '}' => {
+                    self.advance();
+                    Token::new(
+                        TokenKind::RBrace,
+                        "}",
+                        SourceSpan::new(start, self.current_pos()),
+                    )
+                }
+                '[' => {
+                    self.advance();
+                    Token::new(
+                        TokenKind::LBracket,
+                        "[",
+                        SourceSpan::new(start, self.current_pos()),
+                    )
+                }
+                ']' => {
+                    self.advance();
+                    Token::new(
+                        TokenKind::RBracket,
+                        "]",
+                        SourceSpan::new(start, self.current_pos()),
+                    )
+                }
+                '(' => {
+                    self.advance();
+                    Token::new(
+                        TokenKind::LParen,
+                        "(",
+                        SourceSpan::new(start, self.current_pos()),
+                    )
+                }
+                ')' => {
+                    self.advance();
+                    Token::new(
+                        TokenKind::RParen,
+                        ")",
+                        SourceSpan::new(start, self.current_pos()),
+                    )
+                }
+                ';' => {
+                    self.advance();
+                    Token::new(
+                        TokenKind::Semi,
+                        ";",
+                        SourceSpan::new(start, self.current_pos()),
+                    )
+                }
+                ':' => {
+                    self.advance();
+                    Token::new(
+                        TokenKind::Colon,
+                        ":",
+                        SourceSpan::new(start, self.current_pos()),
+                    )
+                }
+                ',' => {
+                    self.advance();
+                    Token::new(
+                        TokenKind::Comma,
+                        ",",
+                        SourceSpan::new(start, self.current_pos()),
+                    )
+                }
+                '@' => {
+                    self.advance();
+                    Token::new(
+                        TokenKind::At,
+                        "@",
+                        SourceSpan::new(start, self.current_pos()),
+                    )
+                }
                 '~' => {
                     let (text, kind) = self.read_path_or_ident(ch);
                     Token::new(kind, text, SourceSpan::new(start, self.current_pos()))
@@ -328,7 +419,11 @@ impl<'a> Lexer<'a> {
                 '/' if self.peek_ahead(1) == Some('/') => {
                     self.advance();
                     self.advance();
-                    Token::new(TokenKind::Update, "//", SourceSpan::new(start, self.current_pos()))
+                    Token::new(
+                        TokenKind::Update,
+                        "//",
+                        SourceSpan::new(start, self.current_pos()),
+                    )
                 }
                 '/' => {
                     let (text, kind) = self.read_path_or_ident(ch);
@@ -336,95 +431,174 @@ impl<'a> Lexer<'a> {
                 }
                 '"' => {
                     let text = self.read_string()?;
-                    Token::new(TokenKind::Str, text, SourceSpan::new(start, self.current_pos()))
+                    Token::new(
+                        TokenKind::Str,
+                        text,
+                        SourceSpan::new(start, self.current_pos()),
+                    )
                 }
-                '<' if self.peek_ahead(1).map_or(false, |c| c.is_alphabetic() || c == '/') => {
+                '<' if self
+                    .peek_ahead(1)
+                    .is_some_and(|c| c.is_alphabetic() || c == '/') =>
+                {
                     let text = self.read_search_path()?;
-                    Token::new(TokenKind::SearchPath, text, SourceSpan::new(start, self.current_pos()))
+                    Token::new(
+                        TokenKind::SearchPath,
+                        text,
+                        SourceSpan::new(start, self.current_pos()),
+                    )
                 }
                 '<' => {
                     self.advance();
                     if self.peek() == Some('=') {
                         self.advance();
-                        Token::new(TokenKind::Le, "<=", SourceSpan::new(start, self.current_pos()))
+                        Token::new(
+                            TokenKind::Le,
+                            "<=",
+                            SourceSpan::new(start, self.current_pos()),
+                        )
                     } else {
-                        Token::new(TokenKind::Lt, "<", SourceSpan::new(start, self.current_pos()))
+                        Token::new(
+                            TokenKind::Lt,
+                            "<",
+                            SourceSpan::new(start, self.current_pos()),
+                        )
                     }
                 }
                 '>' => {
                     self.advance();
                     if self.peek() == Some('=') {
                         self.advance();
-                        Token::new(TokenKind::Ge, ">=", SourceSpan::new(start, self.current_pos()))
+                        Token::new(
+                            TokenKind::Ge,
+                            ">=",
+                            SourceSpan::new(start, self.current_pos()),
+                        )
                     } else {
-                        Token::new(TokenKind::Gt, ">", SourceSpan::new(start, self.current_pos()))
+                        Token::new(
+                            TokenKind::Gt,
+                            ">",
+                            SourceSpan::new(start, self.current_pos()),
+                        )
                     }
                 }
                 '=' => {
                     self.advance();
                     if self.peek() == Some('=') {
                         self.advance();
-                        Token::new(TokenKind::Eq, "==", SourceSpan::new(start, self.current_pos()))
+                        Token::new(
+                            TokenKind::Eq,
+                            "==",
+                            SourceSpan::new(start, self.current_pos()),
+                        )
                     } else {
-                        Token::new(TokenKind::Assign, "=", SourceSpan::new(start, self.current_pos()))
+                        Token::new(
+                            TokenKind::Assign,
+                            "=",
+                            SourceSpan::new(start, self.current_pos()),
+                        )
                     }
                 }
                 '!' => {
                     self.advance();
                     if self.peek() == Some('=') {
                         self.advance();
-                        Token::new(TokenKind::Neq, "!=", SourceSpan::new(start, self.current_pos()))
+                        Token::new(
+                            TokenKind::Neq,
+                            "!=",
+                            SourceSpan::new(start, self.current_pos()),
+                        )
                     } else {
-                        Token::new(TokenKind::Not, "!", SourceSpan::new(start, self.current_pos()))
+                        Token::new(
+                            TokenKind::Not,
+                            "!",
+                            SourceSpan::new(start, self.current_pos()),
+                        )
                     }
                 }
                 '&' if self.peek_ahead(1) == Some('&') => {
                     self.advance();
                     self.advance();
-                    Token::new(TokenKind::And, "&&", SourceSpan::new(start, self.current_pos()))
+                    Token::new(
+                        TokenKind::And,
+                        "&&",
+                        SourceSpan::new(start, self.current_pos()),
+                    )
                 }
                 '|' if self.peek_ahead(1) == Some('|') => {
                     self.advance();
                     self.advance();
-                    Token::new(TokenKind::Or, "||", SourceSpan::new(start, self.current_pos()))
+                    Token::new(
+                        TokenKind::Or,
+                        "||",
+                        SourceSpan::new(start, self.current_pos()),
+                    )
                 }
                 '+' if self.peek_ahead(1) == Some('+') => {
                     self.advance();
                     self.advance();
-                    Token::new(TokenKind::Concat, "++", SourceSpan::new(start, self.current_pos()))
+                    Token::new(
+                        TokenKind::Concat,
+                        "++",
+                        SourceSpan::new(start, self.current_pos()),
+                    )
                 }
                 '+' => {
                     self.advance();
-                    Token::new(TokenKind::Plus, "+", SourceSpan::new(start, self.current_pos()))
+                    Token::new(
+                        TokenKind::Plus,
+                        "+",
+                        SourceSpan::new(start, self.current_pos()),
+                    )
                 }
                 '-' => {
                     self.advance();
-                    if self.peek().map_or(false, |c| c.is_ascii_digit()) {
+                    if self.peek().is_some_and(|c| c.is_ascii_digit()) {
                         let (text, kind) = self.read_number();
-                        Token::new(kind, format!("-{text}"), SourceSpan::new(start, self.current_pos()))
+                        Token::new(
+                            kind,
+                            format!("-{text}"),
+                            SourceSpan::new(start, self.current_pos()),
+                        )
                     } else {
-                        Token::new(TokenKind::Sub, "-", SourceSpan::new(start, self.current_pos()))
+                        Token::new(
+                            TokenKind::Sub,
+                            "-",
+                            SourceSpan::new(start, self.current_pos()),
+                        )
                     }
                 }
                 '*' => {
                     self.advance();
-                    Token::new(TokenKind::Mul, "*", SourceSpan::new(start, self.current_pos()))
+                    Token::new(
+                        TokenKind::Mul,
+                        "*",
+                        SourceSpan::new(start, self.current_pos()),
+                    )
                 }
                 '?' => {
                     self.advance();
-                    Token::new(TokenKind::Question, "?", SourceSpan::new(start, self.current_pos()))
+                    Token::new(
+                        TokenKind::Question,
+                        "?",
+                        SourceSpan::new(start, self.current_pos()),
+                    )
                 }
                 '.' if self.peek_ahead(1) == Some('.') && self.peek_ahead(2) == Some('.') => {
                     self.advance();
                     self.advance();
                     self.advance();
-                    Token::new(TokenKind::Ellipsis, "...", SourceSpan::new(start, self.current_pos()))
+                    Token::new(
+                        TokenKind::Ellipsis,
+                        "...",
+                        SourceSpan::new(start, self.current_pos()),
+                    )
                 }
                 '.' if self.peek_ahead(1) == Some('/') => {
                     let (text, kind) = self.read_path_or_ident(ch);
                     Token::new(kind, text, SourceSpan::new(start, self.current_pos()))
                 }
-                '.' if self.peek_ahead(1).map_or(false, |c| c.is_ascii_digit()) => {
+                '.' if self.peek_ahead(1).is_some_and(|c| c.is_ascii_digit()) => {
                     self.advance();
                     let mut text = String::from("0.");
                     while let Some(c) = self.peek() {
@@ -435,11 +609,19 @@ impl<'a> Lexer<'a> {
                             break;
                         }
                     }
-                    Token::new(TokenKind::Float, text, SourceSpan::new(start, self.current_pos()))
+                    Token::new(
+                        TokenKind::Float,
+                        text,
+                        SourceSpan::new(start, self.current_pos()),
+                    )
                 }
                 '.' => {
                     self.advance();
-                    Token::new(TokenKind::Dot, ".", SourceSpan::new(start, self.current_pos()))
+                    Token::new(
+                        TokenKind::Dot,
+                        ".",
+                        SourceSpan::new(start, self.current_pos()),
+                    )
                 }
                 c if c.is_ascii_digit() => {
                     let (text, kind) = self.read_number();
@@ -486,11 +668,11 @@ mod tests {
 
     #[test]
     fn lex_numbers() {
-        let tokens = tokenize("42 3.14").unwrap();
+        let tokens = tokenize("42 2.5").unwrap();
         assert_eq!(tokens[0].kind, TokenKind::Int);
         assert_eq!(tokens[0].text, "42");
         assert_eq!(tokens[1].kind, TokenKind::Float);
-        assert_eq!(tokens[1].text, "3.14");
+        assert_eq!(tokens[1].text, "2.5");
     }
 
     #[test]

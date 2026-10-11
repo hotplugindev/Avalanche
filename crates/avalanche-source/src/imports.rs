@@ -205,7 +205,11 @@ fn find_import_sites_recursive(expr: &Expr, sites: &mut Vec<ImportSite>) {
             }
             find_import_sites_recursive(body, sites);
         }
-        Expr::If { cond, then_branch, else_branch } => {
+        Expr::If {
+            cond,
+            then_branch,
+            else_branch,
+        } => {
             find_import_sites_recursive(cond, sites);
             find_import_sites_recursive(then_branch, sites);
             find_import_sites_recursive(else_branch, sites);

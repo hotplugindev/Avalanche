@@ -37,12 +37,11 @@ pub fn extract_option(
         });
     }
 
-    let json: Value = serde_json::from_str(&output.stdout).map_err(|e| {
-        NixError::OptionExtractionFailed {
+    let json: Value =
+        serde_json::from_str(&output.stdout).map_err(|e| NixError::OptionExtractionFailed {
             path: option_path.to_string(),
             reason: e.to_string(),
-        }
-    })?;
+        })?;
 
     parse_option_schema(&json, option_path, scope)
 }

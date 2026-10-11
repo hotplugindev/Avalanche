@@ -33,11 +33,10 @@ pub fn get_assertions(
         });
     }
 
-    let json: Value = serde_json::from_str(&output.stdout).map_err(|e| {
-        NixError::JsonDecodeFailed {
+    let json: Value =
+        serde_json::from_str(&output.stdout).map_err(|e| NixError::JsonDecodeFailed {
             reason: e.to_string(),
-        }
-    })?;
+        })?;
 
     parse_assertions(&json)
 }
@@ -52,7 +51,10 @@ pub fn parse_assertions(json: &Value) -> NixResult<Vec<Assertion>> {
         .iter()
         .filter_map(|item| {
             let message = item.get("message")?.as_str()?.to_string();
-            let passed = item.get("passed").and_then(|v| v.as_bool()).unwrap_or(false);
+            let passed = item
+                .get("passed")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             Some(Assertion { message, passed })
         })
         .collect())

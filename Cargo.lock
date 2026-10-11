@@ -45,6 +45,7 @@ name = "avalanche-doctor"
 version = "0.1.0"
 dependencies = [
  "avalanche-model",
+ "avalanche-ownership",
  "serde",
  "serde_json",
  "thiserror",
@@ -125,6 +126,8 @@ name = "avalanche-validate"
 version = "0.1.0"
 dependencies = [
  "avalanche-model",
+ "avalanche-nix",
+ "avalanche-source",
  "serde",
  "serde_json",
  "thiserror",
@@ -135,6 +138,7 @@ name = "avalanche-write"
 version = "0.1.0"
 dependencies = [
  "avalanche-model",
+ "avalanche-source",
  "serde",
  "serde_json",
  "thiserror",

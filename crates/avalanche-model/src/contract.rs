@@ -99,9 +99,9 @@ impl RepositoryContract {
     }
 
     pub fn covers_path(&self, option_path: &str) -> bool {
-        self.namespaces.iter().any(|n| {
-            option_path == n.path || option_path.starts_with(&format!("{}.", n.path))
-        })
+        self.namespaces
+            .iter()
+            .any(|n| option_path == n.path || option_path.starts_with(&format!("{}.", n.path)))
     }
 
     pub fn validate_requester(&self, requester: &str) -> Result<RequesterKind, ModelError> {
@@ -124,9 +124,8 @@ pub fn parse_requester(requester: &str) -> Result<RequesterKind, ModelError> {
         return Err(ModelError::Invalid("empty requester".into()));
     }
 
-    let kind = RequesterKind::from_segment(segs[0]).ok_or_else(|| {
-        ModelError::Invalid(format!("unknown requester kind: {}", segs[0]))
-    })?;
+    let kind = RequesterKind::from_segment(segs[0])
+        .ok_or_else(|| ModelError::Invalid(format!("unknown requester kind: {}", segs[0])))?;
 
     if kind.is_scoped() {
         if segs.len() < 3 {

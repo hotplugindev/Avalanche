@@ -5,6 +5,8 @@ edition.workspace = true
 
 [dependencies]
 avalanche-model = { path = "../avalanche-model" }
+avalanche-source = { path = "../avalanche-source" }
+avalanche-nix = { path = "../avalanche-nix" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

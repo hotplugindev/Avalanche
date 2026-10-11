@@ -2,12 +2,16 @@ use std::path::{Path, PathBuf};
 
 use avalanche_index::{compute_fingerprint, is_stale, IndexService};
 use avalanche_model::{
-    Cpu, Desktop, Fingerprint, Gpu, Hardware, Host, HostClass, HostRole, Profile, ProfileId,
-    Repository, Scope, Shell, User,
+    Cpu, DefinitionType, Desktop, Fingerprint, Gpu, Hardware, Host, HostClass, HostRole, Layer,
+    Profile, ProfileId, Repository, Scope, Shell, User,
 };
 
 fn fixture_path() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/simple-eval")
+}
+
+fn provenance_fixture_path() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/provenance")
 }
 
 #[test]
@@ -124,13 +128,75 @@ fn entity_indices_lookup() {
     );
     assert!(index.host_by_name("nope").is_none());
     assert_eq!(
-        index.user_by_username("alice").map(|u| u.full_name.as_str()),
+        index
+            .user_by_username("alice")
+            .map(|u| u.full_name.as_str()),
         Some("Alice")
     );
     assert!(index.user_by_username("bob").is_none());
     assert_eq!(
-        index.profile_by_name("workstation").map(|p| p.id.name.as_str()),
+        index
+            .profile_by_name("workstation")
+            .map(|p| p.id.name.as_str()),
         Some("workstation")
     );
     assert!(index.profile_by_name("gaming").is_none());
+}
+
+#[test]
+fn provenance_index_explains_profile_default_and_host_override() {
+    let repo_path = provenance_fixture_path();
+    if !repo_path.exists() {
+        return;
+    }
+    let repository = Repository::new(repo_path.display().to_string());
+    let svc = IndexService::new();
+    let index = svc.build_static_only(&repository).unwrap();
+
+    assert!(
+        index.static_index.parse_errors.is_empty(),
+        "{:?}",
+        index.static_index.parse_errors
+    );
+
+    let provenance = index.provenance_for("services.openssh.enable").unwrap();
+    assert_eq!(provenance.definitions.len(), 2);
+
+    let winner = provenance.winning_definition().unwrap();
+    assert_eq!(winner.layer, Layer::Host);
+    assert_eq!(winner.host.as_deref(), Some("pc"));
+    assert_eq!(winner.definition_type, DefinitionType::Literal);
+    assert_eq!(winner.value, Some(serde_json::Value::Bool(false)));
+
+    let overridden = provenance.overridden_definitions();
+    assert_eq!(overridden.len(), 1);
+    assert_eq!(overridden[0].layer, Layer::Profile);
+    assert_eq!(overridden[0].profile.as_deref(), Some("workstation"));
+    assert_eq!(overridden[0].definition_type, DefinitionType::MkDefault);
+    assert!(overridden[0].priority.is_default());
+}
+
+#[test]
+fn provenance_index_preserves_condition_and_capability_layer() {
+    let repo_path = provenance_fixture_path();
+    if !repo_path.exists() {
+        return;
+    }
+    let repository = Repository::new(repo_path.display().to_string());
+    let svc = IndexService::new();
+    let index = svc.build_static_only(&repository).unwrap();
+
+    let provenance = index.provenance_for("services.xserver.enable").unwrap();
+    let definition = &provenance.definitions[0];
+    assert_eq!(definition.layer, Layer::Profile);
+    assert_eq!(definition.definition_type, DefinitionType::MkIf);
+    assert_eq!(
+        definition.condition.as_ref().map(|c| c.expression.as_str()),
+        Some("config.gb.host.hardware.hasBattery")
+    );
+
+    let pipewire = index
+        .provenance_for("services.pipewire.media-session.enable")
+        .unwrap();
+    assert_eq!(pipewire.definitions[0].layer, Layer::Capability);
 }

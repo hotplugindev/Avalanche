@@ -314,6 +314,95 @@ fn provenance_preserves_all_definition_metadata() {
 }
 
 #[test]
+fn provenance_explains_effective_scalar_winner() {
+    let mut provenance = Provenance::new("services.openssh.enable");
+
+    let mut profile_def = def(
+        "services.openssh.enable",
+        Priority::mk_default(),
+        Layer::Profile,
+        Scope::System,
+        DefinitionType::MkDefault,
+    );
+    profile_def.profile = Some("workstation".to_string());
+    profile_def.value = Some(serde_json::Value::Bool(true));
+
+    let mut host_def = def(
+        "services.openssh.enable",
+        Priority::normal(),
+        Layer::Host,
+        Scope::System,
+        DefinitionType::Literal,
+    );
+    host_def.host = Some("pc".to_string());
+    host_def.value = Some(serde_json::Value::Bool(false));
+
+    provenance.add(profile_def);
+    provenance.add(host_def);
+    provenance.set_effective_value(Some(JsonValue(serde_json::Value::Bool(false))));
+
+    let winner = provenance.winning_definition().unwrap();
+    assert_eq!(winner.host.as_deref(), Some("pc"));
+    assert_eq!(winner.value, Some(serde_json::Value::Bool(false)));
+
+    let overridden = provenance.overridden_definitions();
+    assert_eq!(overridden.len(), 1);
+    assert_eq!(overridden[0].profile.as_deref(), Some("workstation"));
+
+    let contributions = provenance.contributions();
+    assert_eq!(contributions.len(), 1);
+    assert_eq!(
+        contributions[0].value,
+        JsonValue(serde_json::Value::Bool(false))
+    );
+    assert_eq!(contributions[0].layer, Some(Layer::Host));
+}
+
+#[test]
+fn provenance_contributes_merged_list_values() {
+    let mut provenance = Provenance::new("gb.requires.system.audio.pipewire");
+
+    let mut profile_def = def(
+        "gb.requires.system.audio.pipewire",
+        Priority::mk_default(),
+        Layer::Profile,
+        Scope::System,
+        DefinitionType::MkDefault,
+    );
+    profile_def.profile = Some("workstation".to_string());
+    profile_def.value = Some(serde_json::json!(["profiles.system.workstation"]));
+
+    let mut program_def = def(
+        "gb.requires.system.audio.pipewire",
+        Priority::normal(),
+        Layer::Program,
+        Scope::System,
+        DefinitionType::Literal,
+    );
+    program_def.value = Some(serde_json::json!(["programs.system.steam"]));
+
+    provenance.add(profile_def);
+    provenance.add(program_def);
+    provenance.set_effective_value(Some(JsonValue(serde_json::json!([
+        "profiles.system.workstation",
+        "programs.system.steam"
+    ]))));
+
+    let contributions = provenance.contributions();
+    assert_eq!(contributions.len(), 2);
+    assert_eq!(
+        contributions[0].value,
+        JsonValue(serde_json::json!("profiles.system.workstation"))
+    );
+    assert_eq!(contributions[0].profile.as_deref(), Some("workstation"));
+    assert_eq!(
+        contributions[1].value,
+        JsonValue(serde_json::json!("programs.system.steam"))
+    );
+    assert_eq!(contributions[1].layer, Some(Layer::Program));
+}
+
+#[test]
 fn condition_represents_hardware_gating() {
     let condition = Condition {
         expression: "config.gb.host.hardware.gpu == \"amd\"".to_string(),

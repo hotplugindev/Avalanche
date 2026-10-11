@@ -230,12 +230,21 @@ impl Parser {
         let mut func = self.parse_select()?;
         loop {
             let can_be_arg = match self.peek().kind {
-                TokenKind::Int | TokenKind::Float | TokenKind::Str | TokenKind::Path
-                | TokenKind::Ident | TokenKind::LBrace | TokenKind::LBracket
-                | TokenKind::LParen | TokenKind::SearchPath => true,
+                TokenKind::Int
+                | TokenKind::Float
+                | TokenKind::Str
+                | TokenKind::Path
+                | TokenKind::Ident
+                | TokenKind::LBrace
+                | TokenKind::LBracket
+                | TokenKind::LParen
+                | TokenKind::SearchPath => true,
                 TokenKind::Keyword => {
                     let text = self.peek().text.as_str();
-                    matches!(text, "true" | "false" | "null" | "let" | "if" | "with" | "assert" | "rec" | "or")
+                    matches!(
+                        text,
+                        "true" | "false" | "null" | "let" | "if" | "with" | "assert" | "rec" | "or"
+                    )
                 }
                 _ => false,
             };
@@ -257,7 +266,12 @@ impl Parser {
 
         if self.peek().kind == TokenKind::Dot {
             self.advance();
-            let mut path = vec![self.attr_name()?];
+            let mut path = match &expr {
+                Expr::Ident(name) => vec![name.clone()],
+                Expr::AttrPath(existing) => existing.clone(),
+                _ => Vec::new(),
+            };
+            path.push(self.attr_name()?);
             while self.peek().kind == TokenKind::Dot {
                 self.advance();
                 path.push(self.attr_name()?);
@@ -337,24 +351,34 @@ impl Parser {
                 }
                 Ok(Expr::Ident(tok.text.clone()))
             }
-            TokenKind::Keyword => {
-                match tok.text.as_str() {
-                    "true" => { self.advance(); Ok(Expr::Bool(true)) }
-                    "false" => { self.advance(); Ok(Expr::Bool(false)) }
-                    "null" => { self.advance(); Ok(Expr::Ident("null".into())) }
-                    "let" => self.parse_let(),
-                    "if" => self.parse_if(),
-                    "with" => self.parse_with(),
-                    "assert" => self.parse_assert(),
-                    "inherit" => self.parse_inherit(),
-                    "rec" => {
-                        self.advance();
-                        self.parse_attrs()
-                    }
-                    "or" => { self.advance(); Ok(Expr::Ident("or".into())) }
-                    _ => Err(self.unexpected(&tok, "expression")),
+            TokenKind::Keyword => match tok.text.as_str() {
+                "true" => {
+                    self.advance();
+                    Ok(Expr::Bool(true))
                 }
-            }
+                "false" => {
+                    self.advance();
+                    Ok(Expr::Bool(false))
+                }
+                "null" => {
+                    self.advance();
+                    Ok(Expr::Ident("null".into()))
+                }
+                "let" => self.parse_let(),
+                "if" => self.parse_if(),
+                "with" => self.parse_with(),
+                "assert" => self.parse_assert(),
+                "inherit" => self.parse_inherit(),
+                "rec" => {
+                    self.advance();
+                    self.parse_attrs()
+                }
+                "or" => {
+                    self.advance();
+                    Ok(Expr::Ident("or".into()))
+                }
+                _ => Err(self.unexpected(&tok, "expression")),
+            },
             TokenKind::LBrace => {
                 let save_pos = self.pos;
                 self.advance();
@@ -368,8 +392,8 @@ impl Parser {
                     }
                     scan_pos += 1;
                 }
-                let is_lambda = scan_pos < self.tokens.len()
-                    && self.tokens[scan_pos].kind == TokenKind::Colon;
+                let is_lambda =
+                    scan_pos < self.tokens.len() && self.tokens[scan_pos].kind == TokenKind::Colon;
                 self.pos = save_pos;
 
                 if is_lambda {
@@ -506,9 +530,7 @@ impl Parser {
             let tok = self.peek().clone();
             match tok.kind {
                 TokenKind::RBrace | TokenKind::Eof | TokenKind::Keyword => {
-                    if tok.kind == TokenKind::Keyword
-                        && (tok.text == "inherit")
-                    {
+                    if tok.kind == TokenKind::Keyword && (tok.text == "inherit") {
                         let start = tok.span.start;
                         let expr = self.parse_inherit()?;
                         self.expect(TokenKind::Semi, "';'")?;
@@ -647,7 +669,11 @@ fn walk_imports(expr: &Expr, imports: &mut Vec<ImportRef>) {
                 walk_imports(item, imports);
             }
         }
-        Expr::If { cond, then_branch, else_branch } => {
+        Expr::If {
+            cond,
+            then_branch,
+            else_branch,
+        } => {
             walk_imports(cond, imports);
             walk_imports(then_branch, imports);
             walk_imports(else_branch, imports);

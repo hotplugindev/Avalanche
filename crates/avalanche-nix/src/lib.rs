@@ -89,11 +89,7 @@ impl NixService {
         eval_host_option(&self.process, &self.repo_path, host, option_path)
     }
 
-    pub fn eval_home_manager(
-        &self,
-        host: &str,
-        user: &str,
-    ) -> NixResult<serde_json::Value> {
+    pub fn eval_home_manager(&self, host: &str, user: &str) -> NixResult<serde_json::Value> {
         eval_home_manager(&self.process, &self.repo_path, host, user)
     }
 

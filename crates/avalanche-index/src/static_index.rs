@@ -52,7 +52,10 @@ impl StaticIndex {
             .unwrap_or(&[])
     }
 
-    pub fn source_location_for(&self, option_path: &str) -> &[avalanche_model::source::SourceLocation] {
+    pub fn source_location_for(
+        &self,
+        option_path: &str,
+    ) -> &[avalanche_model::source::SourceLocation] {
         self.source_locations
             .get(option_path)
             .map(|v| v.as_slice())
@@ -118,7 +121,11 @@ pub fn build_static_index(repo_path: &Path, source: &SourceService) -> IndexResu
                 .entry(dot_path.clone())
                 .or_default()
                 .push(assignment);
-            index.source_locations.entry(dot_path).or_default().push(location);
+            index
+                .source_locations
+                .entry(dot_path)
+                .or_default()
+                .push(location);
         }
 
         if !import_paths.is_empty() {

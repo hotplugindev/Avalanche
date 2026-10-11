@@ -145,11 +145,12 @@ pub fn generate_value_replacement_patch(
     let nix_file = parse(source).map_err(|e| PatchError::Parse(e.to_string()))?;
 
     let binding = find_binding_by_path(&nix_file, attr_path)?;
-    let new_text = format_expr(new_value);
+    let local_path = binding.path.join(".");
+    let new_text = format!("{local_path} = {};", format_expr(new_value));
     let old_text = binding
         .value
         .as_ref()
-        .map(|v| format_expr(v))
+        .map(|v| format!("{local_path} = {};", format_expr(v)))
         .unwrap_or_default();
 
     Ok(SourcePatch::new(
@@ -187,7 +188,10 @@ pub fn generate_binding_insertion_patch(
 ) -> Result<SourcePatch, PatchError> {
     let nix_file = parse(source).map_err(|e| PatchError::Parse(e.to_string()))?;
 
-    let parent_path: Vec<&str> = attr_path.rsplitn(2, '.').nth(1).map(|p| p.split('.').collect()).unwrap_or_default();
+    let parent_path: Vec<&str> = attr_path
+        .rsplit_once('.')
+        .map(|(parent, _)| parent.split('.').collect())
+        .unwrap_or_default();
 
     let parent_binding = if parent_path.is_empty() {
         None
@@ -212,10 +216,7 @@ pub fn generate_binding_insertion_patch(
     let new_binding_text = format!("{}{} = {};", indent, attr_path, format_expr(value));
 
     let insert_span = if let Some(parent) = &parent_binding {
-        avalanche_model::source::SourceSpan::new(
-            parent.span.end,
-            parent.span.end,
-        )
+        avalanche_model::source::SourceSpan::new(parent.span.end, parent.span.end)
     } else {
         let end_line = source.lines().count() as u32;
         avalanche_model::source::SourceSpan::new(
@@ -239,18 +240,12 @@ pub fn generate_binding_insertion_patch(
     ))
 }
 
-fn find_binding_by_path<'a>(
-    file: &'a NixFile,
-    attr_path: &str,
-) -> Result<Binding, PatchError> {
+fn find_binding_by_path(file: &NixFile, attr_path: &str) -> Result<Binding, PatchError> {
     let parts: Vec<&str> = attr_path.split('.').collect();
     find_binding_by_path_parts(file, &parts)
 }
 
-fn find_binding_by_path_parts(
-    file: &NixFile,
-    parts: &[&str],
-) -> Result<Binding, PatchError> {
+fn find_binding_by_path_parts(file: &NixFile, parts: &[&str]) -> Result<Binding, PatchError> {
     find_binding_in_expr(&file.expr, parts)
 }
 
@@ -281,12 +276,8 @@ fn find_binding_in_expr(expr: &Expr, parts: &[&str]) -> Result<Binding, PatchErr
                 path: parts.join("."),
             })
         }
-        Expr::Let { body, .. } | Expr::Lambda { body, .. } => {
-            find_binding_in_expr(body, parts)
-        }
-        Expr::With { body, .. } | Expr::Assert { body, .. } => {
-            find_binding_in_expr(body, parts)
-        }
+        Expr::Let { body, .. } | Expr::Lambda { body, .. } => find_binding_in_expr(body, parts),
+        Expr::With { body, .. } | Expr::Assert { body, .. } => find_binding_in_expr(body, parts),
         _ => Err(PatchError::AssignmentNotFound {
             path: parts.join("."),
         }),
@@ -312,7 +303,10 @@ mod tests {
             "test.nix",
             avalanche_model::source::SourceSpan::new(
                 avalanche_model::source::Position { line: 2, column: 3 },
-                avalanche_model::source::Position { line: 2, column: 18 },
+                avalanche_model::source::Position {
+                    line: 2,
+                    column: 18,
+                },
             ),
             "enable = true;",
             "enable = false;",
@@ -353,15 +347,14 @@ mod tests {
     #[test]
     fn generate_value_replacement() {
         let source = "{\n  enable = true;\n}\n";
-        let patch = generate_value_replacement_patch(
-            "test.nix",
-            source,
-            "enable",
-            &Expr::Bool(false),
-        )
-        .unwrap();
-        assert_eq!(patch.new_text, "false");
+        let patch =
+            generate_value_replacement_patch("test.nix", source, "enable", &Expr::Bool(false))
+                .unwrap();
+        assert_eq!(patch.new_text, "enable = false;");
         assert!(patch.description.contains("enable"));
+        let result = apply_patch(source, &patch).unwrap();
+        assert!(result.contains("enable = false;"));
+        assert!(!result.contains("enable = true;"));
     }
 
     #[test]
@@ -374,7 +367,10 @@ mod tests {
             &Expr::Bool(false),
         )
         .unwrap();
-        assert_eq!(patch.new_text, "false");
+        assert_eq!(patch.new_text, "services.pipewire.enable = false;");
+        let result = apply_patch(source, &patch).unwrap();
+        assert!(result.contains("services.pipewire.enable = false;"));
+        assert!(!result.contains("services.pipewire.enable = true;"));
     }
 
     #[test]
@@ -406,12 +402,8 @@ mod tests {
     #[test]
     fn assignment_not_found() {
         let source = "{ enable = true; }";
-        let result = generate_value_replacement_patch(
-            "test.nix",
-            source,
-            "nonexistent",
-            &Expr::Bool(false),
-        );
+        let result =
+            generate_value_replacement_patch("test.nix", source, "nonexistent", &Expr::Bool(false));
         assert!(result.is_err());
         match result.unwrap_err() {
             PatchError::AssignmentNotFound { path } => {
@@ -424,13 +416,9 @@ mod tests {
     #[test]
     fn generate_insertion_patch() {
         let source = "{\n  existing = true;\n}\n";
-        let patch = generate_binding_insertion_patch(
-            "test.nix",
-            source,
-            "new_option",
-            &Expr::Bool(true),
-        )
-        .unwrap();
+        let patch =
+            generate_binding_insertion_patch("test.nix", source, "new_option", &Expr::Bool(true))
+                .unwrap();
         assert!(patch.new_text.contains("new_option = true;"));
     }
 }

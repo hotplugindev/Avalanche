@@ -168,7 +168,7 @@ fn extract_requests(index: &SemanticIndex) -> Vec<ResolvedRequest> {
             _ => continue,
         };
 
-        let name_parts: Vec<&str> = parts[1..].iter().copied().collect();
+        let name_parts: Vec<&str> = parts[1..].to_vec();
         let (domain, name) = if name_parts.len() >= 2 {
             (
                 name_parts[..name_parts.len() - 1].join("."),
@@ -198,7 +198,11 @@ fn extract_requests(index: &SemanticIndex) -> Vec<ResolvedRequest> {
         });
     }
 
-    requests.sort_by(|a, b| a.capability.request_path().cmp(&b.capability.request_path()));
+    requests.sort_by(|a, b| {
+        a.capability
+            .request_path()
+            .cmp(&b.capability.request_path())
+    });
     requests
 }
 
@@ -240,7 +244,10 @@ mod tests {
         assert_eq!(pipewire.capability.scope, Scope::System);
         assert_eq!(pipewire.requesters, vec!["programs.system.steam"]);
 
-        let git = requests.iter().find(|r| r.capability.name == "git").unwrap();
+        let git = requests
+            .iter()
+            .find(|r| r.capability.name == "git")
+            .unwrap();
         assert!(!git.active);
         assert_eq!(git.capability.scope, Scope::Home);
     }

@@ -1,16 +1,18 @@
-pub mod ast;
 pub mod assignments;
+pub mod ast;
+pub mod definition;
 pub mod format;
 pub mod imports;
 pub mod lexer;
 pub mod parser;
 pub mod patch;
 
-pub use ast::{BinOp, Binding, Expr, ImportRef, NixFile, SpannedExpr};
 pub use assignments::{
     classify_value, extract_assignments, extract_assignments_with_prefix, find_assignment,
     find_assignments_by_prefix, ExtractedAssignment,
 };
+pub use ast::{BinOp, Binding, Expr, ImportRef, NixFile, SpannedExpr};
+pub use definition::{analyze_definition, expr_to_json, DefinitionInfo};
 pub use format::{format_binding, format_expr, format_expr_indented};
 pub use imports::{
     build_import_graph, extract_imports, find_import_sites, resolve_import, ImportContext,
@@ -19,9 +21,8 @@ pub use imports::{
 pub use lexer::{tokenize, LexError, Token, TokenKind};
 pub use parser::{collect_imports, parse, ParseError, Parser};
 pub use patch::{
-    apply_patch, apply_patches, generate_binding_insertion_patch,
-    generate_binding_removal_patch, generate_value_replacement_patch, PatchError, PatchPlan,
-    SourcePatch,
+    apply_patch, apply_patches, generate_binding_insertion_patch, generate_binding_removal_patch,
+    generate_value_replacement_patch, PatchError, PatchPlan, SourcePatch,
 };
 
 use avalanche_model::source::SourceLocation;
@@ -72,9 +73,8 @@ impl SourceService {
     }
 
     pub fn parse_path(&self, path: &Path) -> Result<NixFile, ParseError> {
-        let content = std::fs::read_to_string(path).map_err(|e| {
-            ParseError::Lex(format!("failed to read {}: {}", path.display(), e))
-        })?;
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| ParseError::Lex(format!("failed to read {}: {}", path.display(), e)))?;
         parse(&content)
     }
 
@@ -161,7 +161,9 @@ mod tests {
     #[test]
     fn service_parse_and_extract() {
         let svc = SourceService::new();
-        let file = svc.parse_file("{ services.pipewire.enable = true; }").unwrap();
+        let file = svc
+            .parse_file("{ services.pipewire.enable = true; }")
+            .unwrap();
         let assignments = svc.extract_assignments(&file);
         assert_eq!(assignments.len(), 1);
         assert_eq!(assignments[0].dot_path(), "services.pipewire.enable");
@@ -190,7 +192,9 @@ mod tests {
     #[test]
     fn service_import_detection() {
         let svc = SourceService::new();
-        let file = svc.parse_file("{ imports = [ ./a.nix ./b.nix ]; }").unwrap();
+        let file = svc
+            .parse_file("{ imports = [ ./a.nix ./b.nix ]; }")
+            .unwrap();
         let imports = svc.find_imports(&file);
         assert_eq!(imports.len(), 2);
     }
@@ -215,7 +219,10 @@ mod tests {
                 "test.nix",
                 avalanche_model::source::SourceSpan::new(
                     avalanche_model::source::Position { line: 1, column: 1 },
-                    avalanche_model::source::Position { line: 1, column: 10 },
+                    avalanche_model::source::Position {
+                        line: 1,
+                        column: 10,
+                    },
                 ),
             ),
         };

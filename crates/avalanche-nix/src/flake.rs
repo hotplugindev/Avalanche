@@ -24,11 +24,10 @@ pub fn discover_inputs(process: &NixProcess, repo_path: &Path) -> NixResult<Vec<
         });
     }
 
-    let json: Value = serde_json::from_str(&output.stdout).map_err(|e| {
-        NixError::FlakeDiscoveryFailed {
+    let json: Value =
+        serde_json::from_str(&output.stdout).map_err(|e| NixError::FlakeDiscoveryFailed {
             reason: e.to_string(),
-        }
-    })?;
+        })?;
 
     parse_flake_inputs(&json)
 }
@@ -44,10 +43,7 @@ pub fn parse_flake_inputs(metadata: &Value) -> NixResult<Vec<FlakeInput>> {
         None => return Ok(Vec::new()),
     };
 
-    let root = locks
-        .get("root")
-        .and_then(|r| r.as_str())
-        .unwrap_or("root");
+    let root = locks.get("root").and_then(|r| r.as_str()).unwrap_or("root");
 
     let root_node = match nodes.get(root) {
         Some(n) => n,
@@ -114,8 +110,7 @@ pub fn discover_external_modules(
     let external_modules: Vec<ExternalModule> = inputs
         .into_iter()
         .filter(|input| {
-            !input.name.starts_with("nixpkgs")
-                && !input.name.starts_with("flake-utils")
+            !input.name.starts_with("nixpkgs") && !input.name.starts_with("flake-utils")
         })
         .map(|input| ExternalModule {
             flake_name: input.name.clone(),

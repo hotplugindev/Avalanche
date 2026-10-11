@@ -94,7 +94,7 @@
       testValues = {
         bool = true;
         int = 42;
-        float = 3.14;
+        float = 2.5;
         str = "hello";
         list = [ 1 2 3 ];
         attrs = { a = 1; b = "two"; };

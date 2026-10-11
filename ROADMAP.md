@@ -188,16 +188,16 @@ Make definitions first-class.
 
 ## Tasks
 
-- [ ] source file
-- [ ] source span
-- [ ] layer
-- [ ] priority
-- [ ] host
-- [ ] user
-- [ ] profile
-- [ ] condition
-- [ ] definition type
-- [ ] merged-value contribution provenance
+- [x] source file
+- [x] source span
+- [x] layer
+- [x] priority
+- [x] host
+- [x] user
+- [x] profile
+- [x] condition
+- [x] definition type
+- [x] merged-value contribution provenance
 
 ## Exit criteria
 
@@ -213,20 +213,27 @@ Implement explicit ownership.
 
 ## Tasks
 
-- [ ] ownership registry
-- [ ] owner lookup
-- [ ] requester lookup
-- [ ] implementation lookup
-- [ ] duplicate ownership detection
-- [ ] ambiguous ownership
-- [ ] external ownership
-- [ ] ownership validation
+- [x] ownership registry
+- [x] owner lookup
+- [x] requester lookup
+- [x] implementation lookup
+- [x] duplicate ownership detection
+- [x] ambiguous ownership
+- [x] external ownership
+- [x] ownership validation
 
 ## Exit criteria
 
 Avalanche can answer:
 
 > Who owns this upstream setting?
+
+Ownership is derived from the provenance index (which capability/program module
+actually writes the option), never from the nearest filename. A single registered
+capability/program owner yields `Owned`; two or more yield `Ambiguous`; a
+capability/program-layer value written from a file that is not the registered owner
+yields `WrongOwner`; definitions sourced entirely from external modules yield
+`External`; everything else yields `Unowned`. Only `Owned` permits automatic edits.
 
 ---
 
@@ -238,15 +245,15 @@ Implement dependency attribution.
 
 ## Tasks
 
-- [ ] graph model
-- [ ] capability edges
-- [ ] requester edges
-- [ ] implementation edges
-- [ ] option edges
-- [ ] `why`
-- [ ] `dependents`
-- [ ] `requesters`
-- [ ] `implementation`
+- [x] graph model
+- [x] capability edges
+- [x] requester edges
+- [x] implementation edges
+- [x] option edges
+- [x] `why`
+- [x] `dependents`
+- [x] `requesters`
+- [x] `implementation`
 
 ## Exit criteria
 
@@ -266,18 +273,18 @@ Detect repository inconsistencies.
 
 ## Tasks
 
-- [ ] schema checks
-- [ ] import checks
-- [ ] aggregate checks
-- [ ] orphan modules
-- [ ] duplicate ownership
-- [ ] path/file drift
-- [ ] copy-paste descriptions
-- [ ] empty profiles
-- [ ] broken requests
-- [ ] untracked configuration
-- [ ] repair proposal system
-- [ ] regression fixtures
+- [x] schema checks
+- [x] import checks
+- [x] aggregate checks
+- [x] orphan modules
+- [x] duplicate ownership
+- [x] path/file drift
+- [x] copy-paste descriptions
+- [x] empty profiles
+- [x] broken requests
+- [x] untracked configuration
+- [x] repair proposal system
+- [x] regression fixtures
 
 ## Exit criteria
 
@@ -304,7 +311,17 @@ avalanche diff
 
 ## Exit criteria
 
-The CLI is useful without a GUI.
+ without a GUI.
+
+## Status
+
+Implemented. `avalanche-cli` is a thin adapter over `ConfigurationEngine` with
+six read-only subcommands (`inspect`, `why`, `dependents`, `owners`, `doctor`,
+`diff`) and global flags `-r/--repo`, `--json`, `--nix`, `-h/--help`. The default
+index is static (no Nix evaluation required); `--nix` opts into the full semantic
+index. `doctor` exits non-zero when errors are present. All semantics live in
+core/index/ownership/graph/doctor — the CLI never parses Nix, infers ownership,
+or mutates Git.
 
 ---
 
@@ -340,17 +357,30 @@ Represent changes before applying them.
 
 ## Tasks
 
-- [ ] MutationIntent
-- [ ] MutationPlan
-- [ ] FileChange
-- [ ] Transaction
-- [ ] diff generation
-- [ ] repository fingerprint checks
-- [ ] stale index rejection
+- [x] MutationIntent
+- [x] MutationPlan
+- [x] FileChange
+- [x] Transaction
+- [x] diff generation
+- [x] repository fingerprint checks
+- [x] stale index rejection
 
 ## Exit criteria
 
 Avalanche can show exactly what it intends to change without applying it.
+
+Implemented. `ConfigurationEngine::plan_mutation` resolves typed
+`MutationIntent`s into a `MutationPlan` (a list of `ResolvedEdit`s plus
+`FileChange`s and a unified diff) without touching the repository. Planning
+enforces the safety gates before producing any diff: the index fingerprint is
+compared against a freshly computed one and a stale index is rejected (§13);
+upstream options are gated by ownership so only `Owned` options are auto-edited
+(§8); existing assignments that classify as computed/unknown are refused rather
+than silently transformed (§7); `mkDefault` is preserved as a Nix priority via
+the render hint rather than a boolean (§10); and "reset to profile default"
+deletes the host override instead of writing `false` (§11). Capability, request
+and create intents return an explicit `Unsupported` error so the caller knows
+nothing changed (§22). Actual application of a plan remains in Phase 13.
 
 ---
 
@@ -362,13 +392,13 @@ Implement safe configuration mutation.
 
 ## First operations
 
-- [ ] set boolean
-- [ ] set string
-- [ ] set integer
-- [ ] set simple list
-- [ ] set profile default
-- [ ] set host override
-- [ ] reset host override
+- [x] set boolean
+- [x] set string
+- [x] set integer
+- [x] set simple list
+- [x] set profile default
+- [x] set host override
+- [x] reset host override
 
 ## Pipeline
 
@@ -387,6 +417,16 @@ intent
 
 A failed mutation leaves the repository unchanged.
 
+Implemented. `WriteService::apply_plan` writes all planned
+`FileChange`s through a `FileSource`, then reads each file back and
+parses it (Tier 1 structural check). On any IO error or parse failure
+the already-written files are rolled back to their `before` content
+in reverse order, so a failed mutation leaves the repository unchanged.
+`ConfigurationEngine::execute_mutation` composes `plan_mutation`
+(staleness + ownership + resolution) with `apply_plan` (write + validate
++ rollback) and returns an `Applied` `Transaction` carrying the diff
+and validation report. `nix eval` (Tier 2) is deferred to Phase 14.
+
 ---
 
 # Phase 14 — Validation
@@ -397,7 +437,7 @@ Integrate validation into transactions.
 
 ## Tasks
 
-- [ ] structural validation
+- [x] structural validation
 - [ ] affected `nix eval`
 - [ ] assertions
 - [ ] `nix flake check`
@@ -407,6 +447,19 @@ Integrate validation into transactions.
 ## Exit criteria
 
 Every transaction has an explicit validation state.
+
+Implemented (Tier 1). `ValidationService::validate_structural` parses every
+planned file and reports AST errors as `ValidationFinding`s. `execute_mutation`
+runs a pre-flight check on the in-memory `after` content before any write
+(a bad plan never touches disk, §14) and a post-write check on the content
+actually read back from the repository (confirms the write landed and is
+parseable). On post-write failure the transaction is rolled back via
+`WriteService::rollback_applied`. Every successful transaction carries
+`validation: Some(ValidationReport { tier: Structural, .. })`. Tier 2–4
+(`nix eval`, assertions, `flake check`, build) are implemented in
+`ValidationService` but not yet wired into the default transaction path;
+they require a real Nix binary and are gated behind explicit opt-in to
+avoid slow tests (§15).
 
 ---
 

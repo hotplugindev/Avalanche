@@ -20,9 +20,7 @@ pub fn json_to_nix_value(value: &Value) -> NixValue {
             }
         }
         Value::String(s) => NixValue::Str(s.clone()),
-        Value::Array(arr) => {
-            NixValue::List(arr.iter().map(json_to_nix_value).collect())
-        }
+        Value::Array(arr) => NixValue::List(arr.iter().map(json_to_nix_value).collect()),
         Value::Object(map) => {
             let mut attrs = BTreeMap::new();
             for (k, v) in map {
@@ -71,16 +69,12 @@ fn nix_value_to_serde(value: &NixValue) -> Value {
         NixValue::Null => Value::Null,
         NixValue::Bool(b) => Value::Bool(*b),
         NixValue::Int(i) => Value::Number((*i).into()),
-        NixValue::Float(f) => {
-            serde_json::Number::from_f64(*f)
-                .map(Value::Number)
-                .unwrap_or(Value::Null)
-        }
+        NixValue::Float(f) => serde_json::Number::from_f64(*f)
+            .map(Value::Number)
+            .unwrap_or(Value::Null),
         NixValue::Str(s) => Value::String(s.clone()),
         NixValue::Path(p) => Value::String(p.clone()),
-        NixValue::List(items) => {
-            Value::Array(items.iter().map(nix_value_to_serde).collect())
-        }
+        NixValue::List(items) => Value::Array(items.iter().map(nix_value_to_serde).collect()),
         NixValue::Attrs(map) => {
             let obj: serde_json::Map<String, Value> = map
                 .iter()
@@ -115,7 +109,7 @@ mod tests {
 
     #[test]
     fn decode_json_float() {
-        let v = decode_json("3.14").unwrap();
+        let v = decode_json("2.5").unwrap();
         assert_eq!(infer_nix_type(&v), NixType::Float);
     }
 
