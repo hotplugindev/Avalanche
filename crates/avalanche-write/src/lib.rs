@@ -1,15 +1,24 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use avalanche_model::source::{Position, SourceSpan};
+use avalanche_model::validation::{ValidationReport, ValidationTier};
 use avalanche_model::{
-    EditKind, FileChange, Fingerprint, MutationIntent, MutationPlan, RenderHint, ResolvedEdit,
-    Transaction, TransactionStatus,
+    EditKind, FileChange, Fingerprint, GenerationPlan, MutationIntent, MutationPlan, NewFile,
+    RenderHint, ResolvedEdit, Transaction, TransactionStatus,
 };
 use avalanche_source::{
     apply_patch, generate_binding_insertion_patch, generate_binding_removal_patch,
-    generate_value_replacement_patch, Expr, PatchError,
+    generate_value_replacement_patch, Binding, Expr, PatchError,
 };
 use thiserror::Error;
+
+pub mod templates;
+
+pub use templates::{
+    capability_module, category_default, init_skeleton, profile_module, program_module,
+    CapabilitySpec, HostSpec, InitSpec, ProfileSpec, ProgramSpec, UserSpec,
+};
 
 #[derive(Debug, Error)]
 pub enum WriteError {
@@ -32,6 +41,7 @@ pub enum WriteError {
 pub trait FileSource {
     fn read(&self, rel_path: &str) -> Result<String, WriteError>;
     fn write(&mut self, rel_path: &str, content: &str) -> Result<(), WriteError>;
+    fn remove(&mut self, rel_path: &str) -> Result<(), WriteError>;
 }
 
 pub struct DiskFileSource {
@@ -70,6 +80,14 @@ impl FileSource for DiskFileSource {
             reason: e.to_string(),
         })
     }
+
+    fn remove(&mut self, rel_path: &str) -> Result<(), WriteError> {
+        let full = self.root.join(rel_path);
+        std::fs::remove_file(&full).map_err(|e| WriteError::Io {
+            path: full.display().to_string(),
+            reason: e.to_string(),
+        })
+    }
 }
 
 pub struct WriteService;
@@ -93,16 +111,30 @@ impl WriteService {
     pub fn plan_edits(
         &self,
         edits: &[ResolvedEdit],
+        create: &[NewFile],
         files: &dyn FileSource,
         fingerprint: Fingerprint,
     ) -> Result<MutationPlan, WriteError> {
+        for nf in create {
+            if files.read(&nf.path).is_ok() {
+                return Err(WriteError::EditFailed(format!(
+                    "refusing to overwrite existing path '{}'; repository was not modified",
+                    nf.path
+                )));
+            }
+        }
+
+        let mut diff = String::new();
+        for nf in create {
+            diff.push_str(&creation_diff(&nf.path, &nf.content));
+        }
+
         let mut by_file: BTreeMap<&str, Vec<&ResolvedEdit>> = BTreeMap::new();
         for edit in edits {
             by_file.entry(edit.file.as_str()).or_default().push(edit);
         }
 
         let mut file_changes = Vec::new();
-        let mut diff = String::new();
 
         for (path, file_edits) in by_file {
             let before = files.read(path)?;
@@ -126,6 +158,7 @@ impl WriteService {
 
         Ok(MutationPlan {
             edits: edits.to_vec(),
+            create: create.to_vec(),
             file_changes,
             diff,
             fingerprint,
@@ -144,26 +177,52 @@ impl WriteService {
         intents: Vec<MutationIntent>,
         files: &mut dyn FileSource,
     ) -> Result<Transaction, WriteError> {
+        let mut created: Vec<String> = Vec::new();
         let mut written: Vec<(String, String)> = Vec::new();
+
+        for nf in &plan.create {
+            if let Err(e) = files.write(&nf.path, &nf.content) {
+                rollback_generation(&created, &written, files);
+                return Err(e);
+            }
+            created.push(nf.path.clone());
+        }
 
         for change in &plan.file_changes {
             if let Err(e) = files.write(&change.path, &change.after) {
-                rollback(&written, files);
+                rollback_generation(&created, &written, files);
                 return Err(e);
             }
             written.push((change.path.clone(), change.before.clone()));
+        }
+
+        for nf in &plan.create {
+            let content = match files.read(&nf.path) {
+                Ok(c) => c,
+                Err(e) => {
+                    rollback_generation(&created, &written, files);
+                    return Err(e);
+                }
+            };
+            if let Err(parse_err) = avalanche_source::parse(&content) {
+                rollback_generation(&created, &written, files);
+                return Err(WriteError::ValidationFailed(format!(
+                    "{} produced unparseable Nix after creation: {}; repository was rolled back",
+                    nf.path, parse_err
+                )));
+            }
         }
 
         for change in &plan.file_changes {
             let content = match files.read(&change.path) {
                 Ok(c) => c,
                 Err(e) => {
-                    rollback(&written, files);
+                    rollback_generation(&created, &written, files);
                     return Err(e);
                 }
             };
             if let Err(parse_err) = avalanche_source::parse(&content) {
-                rollback(&written, files);
+                rollback_generation(&created, &written, files);
                 return Err(WriteError::ValidationFailed(format!(
                     "{} produced unparseable Nix after edit: {}; repository was rolled back",
                     change.path, parse_err
@@ -171,10 +230,186 @@ impl WriteService {
             }
         }
 
+        let mut file_changes: Vec<FileChange> = plan
+            .create
+            .iter()
+            .map(|nf| FileChange {
+                path: nf.path.clone(),
+                before: String::new(),
+                after: nf.content.clone(),
+            })
+            .collect();
+        file_changes.extend(plan.file_changes);
+
         Ok(Transaction {
             id: format!("txn-{}", nonce()),
             intents,
-            file_changes: plan.file_changes,
+            file_changes,
+            validation: Some(ValidationReport {
+                tier: ValidationTier::Structural,
+                findings: Vec::new(),
+                passed: true,
+            }),
+            diff: Some(plan.diff),
+            status: TransactionStatus::Applied,
+        })
+    }
+
+    pub fn plan_generation(
+        &self,
+        create: &[NewFile],
+        edits: &[ResolvedEdit],
+        files: &dyn FileSource,
+        fingerprint: Fingerprint,
+    ) -> Result<GenerationPlan, WriteError> {
+        for nf in create {
+            if files.read(&nf.path).is_ok() {
+                return Err(WriteError::EditFailed(format!(
+                    "refusing to overwrite existing path '{}'; repository was not modified",
+                    nf.path
+                )));
+            }
+        }
+
+        let mut diff = String::new();
+        for nf in create {
+            diff.push_str(&creation_diff(&nf.path, &nf.content));
+        }
+
+        let mut by_file: BTreeMap<&str, Vec<&ResolvedEdit>> = BTreeMap::new();
+        for edit in edits {
+            by_file.entry(edit.file.as_str()).or_default().push(edit);
+        }
+        let mut modified = Vec::new();
+        for (path, file_edits) in by_file {
+            let before = files.read(path)?;
+            let mut current = before.clone();
+            for edit in file_edits {
+                current = apply_edit(path, &current, edit)?;
+            }
+            if current == before {
+                continue;
+            }
+            modified.push(FileChange {
+                path: path.to_string(),
+                before: before.clone(),
+                after: current.clone(),
+            });
+            diff.push_str(&unified_diff(path, &before, &current));
+        }
+
+        Ok(GenerationPlan {
+            create: create.to_vec(),
+            edits: edits.to_vec(),
+            modified,
+            diff,
+            fingerprint,
+            status: TransactionStatus::Ready,
+        })
+    }
+
+    pub fn apply_generation(
+        &self,
+        plan: GenerationPlan,
+        intents: Vec<MutationIntent>,
+        files: &mut dyn FileSource,
+    ) -> Result<Transaction, WriteError> {
+        let mut created: Vec<String> = Vec::new();
+        let mut backups: Vec<(String, String)> = Vec::new();
+
+        for nf in &plan.create {
+            if let Err(e) = files.write(&nf.path, &nf.content) {
+                rollback_generation(&created, &backups, files);
+                return Err(e);
+            }
+            created.push(nf.path.clone());
+        }
+
+        let mut by_file: BTreeMap<&str, Vec<&ResolvedEdit>> = BTreeMap::new();
+        for edit in &plan.edits {
+            by_file.entry(edit.file.as_str()).or_default().push(edit);
+        }
+        for (path, file_edits) in by_file {
+            let before = match files.read(path) {
+                Ok(c) => c,
+                Err(e) => {
+                    rollback_generation(&created, &backups, files);
+                    return Err(e);
+                }
+            };
+            let mut current = before.clone();
+            let mut apply_failed = None;
+            for edit in file_edits {
+                match apply_edit(path, &current, edit) {
+                    Ok(c) => current = c,
+                    Err(e) => {
+                        apply_failed = Some(e);
+                        break;
+                    }
+                }
+            }
+            if let Some(e) = apply_failed {
+                rollback_generation(&created, &backups, files);
+                return Err(e);
+            }
+            if current == before {
+                continue;
+            }
+            if let Err(e) = files.write(path, &current) {
+                rollback_generation(&created, &backups, files);
+                return Err(e);
+            }
+            backups.push((path.to_string(), before));
+        }
+
+        for nf in &plan.create {
+            let content = match files.read(&nf.path) {
+                Ok(c) => c,
+                Err(e) => {
+                    rollback_generation(&created, &backups, files);
+                    return Err(e);
+                }
+            };
+            if let Err(parse_err) = avalanche_source::parse(&content) {
+                rollback_generation(&created, &backups, files);
+                return Err(WriteError::ValidationFailed(format!(
+                    "{} produced unparseable Nix after creation: {}; repository was rolled back",
+                    nf.path, parse_err
+                )));
+            }
+        }
+        for change in &plan.modified {
+            let content = match files.read(&change.path) {
+                Ok(c) => c,
+                Err(e) => {
+                    rollback_generation(&created, &backups, files);
+                    return Err(e);
+                }
+            };
+            if let Err(parse_err) = avalanche_source::parse(&content) {
+                rollback_generation(&created, &backups, files);
+                return Err(WriteError::ValidationFailed(format!(
+                    "{} produced unparseable Nix after edit: {}; repository was rolled back",
+                    change.path, parse_err
+                )));
+            }
+        }
+
+        let mut file_changes: Vec<FileChange> = plan
+            .create
+            .iter()
+            .map(|nf| FileChange {
+                path: nf.path.clone(),
+                before: String::new(),
+                after: nf.content.clone(),
+            })
+            .collect();
+        file_changes.extend(plan.modified.clone());
+
+        Ok(Transaction {
+            id: format!("txn-{}", nonce()),
+            intents,
+            file_changes,
             validation: Some(ValidationReport {
                 tier: ValidationTier::Structural,
                 findings: Vec::new(),
@@ -186,10 +421,26 @@ impl WriteService {
     }
 }
 
-fn rollback(written: &[(String, String)], files: &mut dyn FileSource) {
-    for (path, before) in written.iter().rev() {
+fn rollback_generation(
+    created: &[String],
+    backups: &[(String, String)],
+    files: &mut dyn FileSource,
+) {
+    for (path, before) in backups.iter().rev() {
         let _ = files.write(path, before);
     }
+    for path in created.iter().rev() {
+        let _ = files.remove(path);
+    }
+}
+
+fn creation_diff(path: &str, content: &str) -> String {
+    let n = content.lines().count();
+    let mut out = format!("--- /dev/null\n+++ b/{path}\n@@ -0,0 +1,{n} @@\n");
+    for line in content.lines() {
+        out.push_str(&format!("+{line}\n"));
+    }
+    out
 }
 
 fn apply_edit(path: &str, source: &str, edit: &ResolvedEdit) -> Result<String, WriteError> {
@@ -262,6 +513,33 @@ fn value_to_expr(value: &serde_json::Value, option_path: &str) -> Result<Expr, W
                 exprs.push(value_to_expr(item, option_path)?);
             }
             Ok(Expr::List(exprs))
+        }
+        serde_json::Value::Object(obj) => {
+            if let Some(ty) = obj.get("__nix_type__").and_then(|v| v.as_str()) {
+                let val = obj.get("value").and_then(|v| v.as_str());
+                return match (ty, val) {
+                    ("path", Some(p)) => Ok(Expr::Path(p.to_string())),
+                    ("attrpath", Some(a)) => {
+                        Ok(Expr::AttrPath(a.split('.').map(String::from).collect()))
+                    }
+                    ("ident", Some(i)) => Ok(Expr::Ident(i.to_string())),
+                    _ => Err(unsupported(&format!("nix type '{ty}'"))),
+                };
+            }
+            let span = SourceSpan::new(
+                Position { line: 1, column: 1 },
+                Position { line: 1, column: 1 },
+            );
+            let mut bindings = Vec::with_capacity(obj.len());
+            for (key, val) in obj {
+                bindings.push(Binding {
+                    path: vec![key.clone()],
+                    value: Some(value_to_expr(val, option_path)?),
+                    inherit: false,
+                    span,
+                });
+            }
+            Ok(Expr::Attrs(bindings))
         }
         other => Err(unsupported(&format!(
             "cannot render {} as a Nix literal",
@@ -439,6 +717,11 @@ mod tests {
             self.files.insert(rel_path.to_string(), content.to_string());
             Ok(())
         }
+
+        fn remove(&mut self, rel_path: &str) -> Result<(), WriteError> {
+            self.files.remove(rel_path);
+            Ok(())
+        }
     }
 
     fn edit(
@@ -493,8 +776,29 @@ mod tests {
     }
 
     #[test]
-    fn value_to_expr_rejects_object() {
-        let err = value_to_expr(&serde_json::json!({ "a": 1 }), "svc.enable").unwrap_err();
+    fn value_to_expr_renders_plain_object_as_attrs() {
+        let expr = value_to_expr(&serde_json::json!({ "a": 1 }), "svc.enable").unwrap();
+        assert_eq!(
+            expr,
+            Expr::Attrs(vec![Binding {
+                path: vec!["a".to_string()],
+                value: Some(Expr::Int(1)),
+                inherit: false,
+                span: SourceSpan::new(
+                    Position { line: 1, column: 1 },
+                    Position { line: 1, column: 1 }
+                ),
+            }])
+        );
+    }
+
+    #[test]
+    fn value_to_expr_rejects_unknown_nix_type() {
+        let err = value_to_expr(
+            &serde_json::json!({ "__nix_type__": "bogus", "value": "x" }),
+            "svc.enable",
+        )
+        .unwrap_err();
         assert!(matches!(err, WriteError::UnsupportedValue { .. }));
     }
 
@@ -526,7 +830,9 @@ mod tests {
             EditKind::ReplaceValue,
             Some(serde_json::json!(false)),
         )];
-        let plan = WriteService::new().plan_edits(&edits, &src, fp()).unwrap();
+        let plan = WriteService::new()
+            .plan_edits(&edits, &[], &src, fp())
+            .unwrap();
         assert_eq!(plan.file_changes.len(), 1);
         assert!(plan.file_changes[0].after.contains("false"));
         assert!(plan.diff.contains("-  services.pipewire.enable = true;"));
@@ -548,7 +854,9 @@ mod tests {
             EditKind::InsertBinding,
             Some(serde_json::json!(true)),
         )];
-        let plan = WriteService::new().plan_edits(&edits, &src, fp()).unwrap();
+        let plan = WriteService::new()
+            .plan_edits(&edits, &[], &src, fp())
+            .unwrap();
         assert_eq!(plan.file_changes.len(), 1);
         assert!(plan.file_changes[0]
             .after
@@ -569,7 +877,9 @@ mod tests {
             EditKind::RemoveBinding,
             None,
         )];
-        let plan = WriteService::new().plan_edits(&edits, &src, fp()).unwrap();
+        let plan = WriteService::new()
+            .plan_edits(&edits, &[], &src, fp())
+            .unwrap();
         assert_eq!(plan.file_changes.len(), 1);
         assert!(!plan.file_changes[0]
             .after
@@ -588,7 +898,9 @@ mod tests {
             EditKind::ReplaceValue,
             Some(serde_json::json!(true)),
         )];
-        let plan = WriteService::new().plan_edits(&edits, &src, fp()).unwrap();
+        let plan = WriteService::new()
+            .plan_edits(&edits, &[], &src, fp())
+            .unwrap();
         assert!(plan.file_changes.is_empty());
         assert!(plan.diff.is_empty());
     }
@@ -605,7 +917,7 @@ mod tests {
             Some(serde_json::json!(1)),
         )];
         let err = WriteService::new()
-            .plan_edits(&edits, &src, fp())
+            .plan_edits(&edits, &[], &src, fp())
             .unwrap_err();
         assert!(matches!(err, WriteError::Io { .. }));
     }
@@ -625,6 +937,113 @@ mod tests {
             Position { line: 1, column: 1 },
             Position { line: 1, column: 2 },
         );
+    }
+
+    #[test]
+    fn generation_creates_file_and_modifies_existing() {
+        let mut files = HashMap::new();
+        files.insert("m.nix".to_string(), "{\n  enable = true;\n}\n".to_string());
+        let src = MapFileSource {
+            files: files.clone(),
+        };
+        let create = vec![NewFile {
+            path: "new.nix".to_string(),
+            content: "{\n  x = 1;\n}\n".to_string(),
+        }];
+        let edits = vec![edit(
+            "m.nix",
+            "enable",
+            EditKind::ReplaceValue,
+            Some(serde_json::json!(false)),
+        )];
+        let plan = WriteService::new()
+            .plan_generation(&create, &edits, &src, fp())
+            .unwrap();
+
+        let mut target = MapFileSource { files };
+        let txn = WriteService::new()
+            .apply_generation(plan, vec![], &mut target)
+            .unwrap();
+
+        assert_eq!(txn.status, TransactionStatus::Applied);
+        assert_eq!(target.files["new.nix"], "{\n  x = 1;\n}\n");
+        assert!(target.files["m.nix"].contains("enable = false;"));
+        assert!(txn
+            .file_changes
+            .iter()
+            .any(|c| c.path == "new.nix" && c.before.is_empty()));
+        assert!(txn.diff.as_deref().unwrap().contains("--- /dev/null"));
+    }
+
+    #[test]
+    fn generation_refuses_to_overwrite_existing_path() {
+        let mut files = HashMap::new();
+        files.insert("dup.nix".to_string(), "{\n  a = 1;\n}\n".to_string());
+        let src = MapFileSource { files };
+        let create = vec![NewFile {
+            path: "dup.nix".to_string(),
+            content: "x".to_string(),
+        }];
+        let err = WriteService::new()
+            .plan_generation(&create, &[], &src, fp())
+            .unwrap_err();
+        assert!(matches!(err, WriteError::EditFailed(_)));
+    }
+
+    #[test]
+    fn generation_plan_failure_writes_nothing() {
+        let mut files = HashMap::new();
+        files.insert("m.nix".to_string(), "{\n  enable = true;\n}\n".to_string());
+        let src = MapFileSource {
+            files: files.clone(),
+        };
+        let create = vec![NewFile {
+            path: "new.nix".to_string(),
+            content: "{\n  ok = true;\n}\n".to_string(),
+        }];
+        let edits = vec![edit(
+            "m.nix",
+            "nope.nope",
+            EditKind::ReplaceValue,
+            Some(serde_json::json!(1)),
+        )];
+        let err = WriteService::new()
+            .plan_generation(&create, &edits, &src, fp())
+            .unwrap_err();
+        assert!(matches!(err, WriteError::EditFailed(_)));
+        let target = MapFileSource { files };
+        assert!(!target.files.contains_key("new.nix"));
+    }
+
+    #[test]
+    fn generation_rolls_back_created_files_on_parse_failure() {
+        let mut files = HashMap::new();
+        files.insert("m.nix".to_string(), "{\n  enable = true;\n}\n".to_string());
+        let src = MapFileSource {
+            files: files.clone(),
+        };
+        let create = vec![NewFile {
+            path: "bad.nix".to_string(),
+            content: "{ a = ;; }\n".to_string(),
+        }];
+        let edits = vec![edit(
+            "m.nix",
+            "enable",
+            EditKind::ReplaceValue,
+            Some(serde_json::json!(false)),
+        )];
+        let plan = WriteService::new()
+            .plan_generation(&create, &edits, &src, fp())
+            .unwrap();
+
+        let mut target = MapFileSource { files };
+        let err = WriteService::new()
+            .apply_generation(plan, vec![], &mut target)
+            .unwrap_err();
+        assert!(matches!(err, WriteError::ValidationFailed(_)));
+        assert!(!target.files.contains_key("bad.nix"));
+        assert!(target.files["m.nix"].contains("enable = true;"));
+        assert!(!target.files["m.nix"].contains("enable = false"));
     }
 
     struct FlakyFileSource {
@@ -653,6 +1072,11 @@ mod tests {
             self.files.insert(rel_path.to_string(), content.to_string());
             Ok(())
         }
+
+        fn remove(&mut self, rel_path: &str) -> Result<(), WriteError> {
+            self.files.remove(rel_path);
+            Ok(())
+        }
     }
 
     #[test]
@@ -671,7 +1095,9 @@ mod tests {
             EditKind::ReplaceValue,
             Some(serde_json::json!(false)),
         )];
-        let plan = WriteService::new().plan_edits(&edits, &src, fp()).unwrap();
+        let plan = WriteService::new()
+            .plan_edits(&edits, &[], &src, fp())
+            .unwrap();
 
         let mut target = MapFileSource { files };
         let txn = WriteService::new()
@@ -706,7 +1132,9 @@ mod tests {
                 Some(serde_json::json!(8)),
             ),
         ];
-        let plan = WriteService::new().plan_edits(&edits, &src, fp()).unwrap();
+        let plan = WriteService::new()
+            .plan_edits(&edits, &[], &src, fp())
+            .unwrap();
         assert_eq!(plan.file_changes.len(), 2);
 
         let fail: std::collections::HashSet<String> = ["b.nix".to_string()].into_iter().collect();

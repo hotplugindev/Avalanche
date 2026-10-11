@@ -86,3 +86,61 @@ fn validate_transaction_is_deterministic_when_no_host_files_touched() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn execute_mutation_structural_only_skips_nix() {
+    let dir = fixture("structural-only");
+    let r = repo(&dir);
+    let engine = ConfigurationEngine::new(dir.display().to_string());
+    let index = engine.index_static(&r).unwrap();
+
+    let txn = engine
+        .execute_mutation_with_tier(
+            &index,
+            vec![MutationIntent::SetHostOverride {
+                path: "networking.hostName".to_string(),
+                value: serde_json::json!("renamed"),
+                host: "pc".to_string(),
+            }],
+            ValidationTier::Structural,
+        )
+        .unwrap();
+
+    let report = txn.validation.expect("structural tier attaches a report");
+    assert_eq!(report.tier, ValidationTier::Structural);
+    assert!(
+        report.findings.is_empty(),
+        "structural tier must not invoke nix: {:?}",
+        report.findings
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn execute_mutation_nix_eval_tier_attaches_report() {
+    let dir = fixture("nix-eval-tier");
+    let r = repo(&dir);
+    let engine = ConfigurationEngine::new(dir.display().to_string());
+    let index = engine.index_static(&r).unwrap();
+
+    let txn = engine
+        .execute_mutation_with_tier(
+            &index,
+            vec![MutationIntent::SetHostOverride {
+                path: "networking.hostName".to_string(),
+                value: serde_json::json!("renamed"),
+                host: "pc".to_string(),
+            }],
+            ValidationTier::NixEval,
+        )
+        .unwrap();
+
+    assert_eq!(txn.status, TransactionStatus::Applied);
+    let report = txn
+        .validation
+        .expect("nix eval tier must attach a validation report");
+    assert_eq!(report.tier, ValidationTier::NixEval);
+
+    let _ = std::fs::remove_dir_all(&dir);
+}

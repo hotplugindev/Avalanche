@@ -252,22 +252,51 @@ fn stale_index_is_rejected_before_planning() {
 }
 
 #[test]
-fn unsupported_intent_reports_no_change() {
+fn module_creation_without_aggregate_fails_closed_and_leaves_repo_unchanged() {
     let dir = fixture("unsup");
     let repo = repo_with_profile(&dir);
     let engine = ConfigurationEngine::new(dir.display().to_string());
     let index = engine.index_static(&repo).unwrap();
 
+    let before: Vec<(String, String)> =
+        std::fs::read_dir(dir.join("modules/capabilities/system/audio"))
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| {
+                let p = e.path();
+                (
+                    p.file_name().unwrap().to_string_lossy().to_string(),
+                    std::fs::read_to_string(&p).unwrap(),
+                )
+            })
+            .collect();
+
     let err = engine
         .plan_mutation(
             &index,
-            vec![MutationIntent::EnableCapability {
-                capability: "audio.pipewire".to_string(),
-                requester: "profiles.system.workstation".to_string(),
+            vec![MutationIntent::CreateModule {
+                name: "test".to_string(),
+                kind: "program".to_string(),
             }],
         )
         .unwrap_err();
 
-    assert!(matches!(err, WriteError::Unsupported(_)));
+    assert!(matches!(err, WriteError::EditFailed(_)));
+    assert!(!dir.join("modules/programs/system/test.nix").exists());
+
+    let after: Vec<(String, String)> =
+        std::fs::read_dir(dir.join("modules/capabilities/system/audio"))
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| {
+                let p = e.path();
+                (
+                    p.file_name().unwrap().to_string_lossy().to_string(),
+                    std::fs::read_to_string(&p).unwrap(),
+                )
+            })
+            .collect();
+    assert_eq!(before, after);
+
     cleanup(&dir);
 }

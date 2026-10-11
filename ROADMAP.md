@@ -453,8 +453,9 @@ planned file and reports AST errors as `ValidationFinding`s. `execute_mutation`
 runs a pre-flight check on the in-memory `after` content before any write
 (a bad plan never touches disk, §14) and a post-write check on the content
 actually read back from the repository (confirms the write landed and is
-parseable). On post-write failure the transaction is rolled back via
-`WriteService::rollback_applied`. Every successful transaction carries
+parseable). On post-write failure `apply_plan` restores every already-written
+file to its pre-write content in reverse order before returning the error.
+Every successful transaction carries
 `validation: Some(ValidationReport { tier: Structural, .. })`. Tier 2–4
 (`nix eval`, assertions, `flake check`, build) are implemented in
 `ValidationService` but not yet wired into the default transaction path;
@@ -471,20 +472,42 @@ Manage existing applications.
 
 ## Tasks
 
-- [ ] application search
+- [x] application search
 - [ ] install
-- [ ] enable
-- [ ] disable
+- [x] enable
+- [x] disable
 - [ ] package selection
-- [ ] typed GB options
+- [x] typed GB options
 - [ ] capability requests
 - [ ] profile defaults
-- [ ] host overrides
-- [ ] provenance
+- [x] host overrides
+- [x] provenance
 
 ## Exit criteria
 
 Simple applications can be completely managed through Avalanche.
+
+Implemented (discovery + search + enable/disable slice). Application
+discovery (`build_application_index`) is driven by the declared
+`options.gb.{programs.system,home.programs}.<...>.enable` assignments in the
+static index — never inferred from file paths — so only options inside the two
+contract `NamespaceKind::Application` namespaces become applications, and
+out-of-namespace modules (e.g. `gb.home.dev.editors.zed`) are correctly
+excluded. `ApplicationId::option_path` round-trips both the flat system shape
+(`gb.programs.system.steam`) and the namespaced home shape
+(`gb.home.programs.web.firefox`). `ConfigurationEngine::search_applications`
+performs a case-insensitive substring match over name, category, requester
+name, GB option path and module path, returning typed `Application` results.
+Enable/disable reuse the Phase 13 transactional write engine: enabling writes a
+host override (`<app>.enable = true`) via `SetHostOverride`; disabling deletes
+that override via `ResetHostOverride` (delete, never write `false`, §11). All
+edits preserve layer/scope/host provenance and pass the Tier 1 structural
+gate. Deferred to keep the slice deterministic and nix-free (§15/§18): install
+and package selection (require a live `nix` binary), capability-request wiring
+(`EnableCapability`/`DisableCapability` remain `Unsupported` in the planner),
+and a dedicated profile-default helper for apps (reachable today through the
+generic `SetProfileDefault` intent but not yet exposed at the application
+level).
 
 ---
 
@@ -496,19 +519,32 @@ Create new application modules safely.
 
 ## Tasks
 
-- [ ] module templates
-- [ ] package placement
-- [ ] option declarations
-- [ ] capability requests
-- [ ] category registration
-- [ ] aggregate registration
-- [ ] ownership
-- [ ] re-index
-- [ ] validation
+- [x] module templates
+- [x] package placement
+- [x] option declarations
+- [x] capability requests
+- [x] category registration
+- [x] aggregate registration
+- [x] ownership
+- [x] re-index
+- [x] validation
 
 ## Exit criteria
 
 A new application can be generated without manual registration edits.
+
+Implemented. `avalanche generate <program|capability|profile> <name>` and the
+`CreateModule` intent build a module from `avalanche-write::templates`
+(`program_module`/`capability_module`/`profile_module`, with `mkEnableOption`
+declarations and the correct `gb.*` option prefix), place it at the contract path
+(`modules/{programs,capabilities,profiles}/<scope>/…`), and append the matching
+`../…` import to the scope aggregate (`modules/aggregate/nixos.nix` or
+`home.nix`) in the same transaction. Home programs in a category also get a
+category `default.nix` aggregation. Names are validated (`validate_identifier`/
+`validate_dotted`) so path traversal and malformed identifiers are rejected before
+any write. The plan flows through the Phase 13 pipeline (stale gate, structural
+validation, rollback on failure), and the next CLI invocation re-indexes the new
+module automatically.
 
 ---
 
@@ -520,16 +556,16 @@ Create a conforming Avalanche-managed Nix repository from scratch.
 
 ## Tasks
 
-- [ ] `avalanche init` CLI command
-- [ ] repository skeleton templates (flake.nix, hosts/, users/, modules/)
-- [ ] contract bootstrap (gb.schemaVersion declaration)
-- [ ] aggregate registration scaffolding
-- [ ] core option modules (host, user, requests, debug)
-- [ ] initial host creation (interactive or flag-driven)
-- [ ] initial user creation
-- [ ] git initialization
-- [ ] validation of generated skeleton against contract
-- [ ] idempotent re-init (add host/user to existing repo)
+- [x] `avalanche init` CLI command
+- [x] repository skeleton templates (flake.nix, hosts/, users/, modules/)
+- [x] contract bootstrap (gb.schemaVersion declaration)
+- [x] aggregate registration scaffolding
+- [x] core option modules (host, user, requests, debug)
+- [x] initial host creation (interactive or flag-driven)
+- [x] initial user creation
+- [x] git initialization
+- [x] validation of generated skeleton against contract
+- [x] idempotent re-init (add host/user to existing repo)
 
 ## Exit criteria
 
@@ -538,6 +574,19 @@ avalanche init ~/my-config --host pc --user alice
 ```
 
 produces a repository that passes `avalanche doctor` with zero errors and can be immediately indexed.
+
+Implemented. `ConfigurationEngine::init_repository` validates the spec, writes the
+skeleton from `templates::init_skeleton` (`flake.nix`, `hosts/default.nix` +
+`hosts/<host>/default.nix`, `users/default.nix` + `users/<user>.nix`,
+`modules/core/schema.nix` declaring `gb.schemaVersion = 1`, the core host/user/
+request/debug option modules, and both aggregates), then runs `git init` with an
+initial commit, re-indexes statically, and diagnoses against the contract. If the
+skeleton reports any error the whole generation (including `.git`) is removed and
+`init` fails closed. Re-running `init` where `flake.nix` already exists takes the
+idempotent `add_to_existing` path and appends a new host or user without touching
+existing configuration. Covered by `crates/avalanche-core/tests/repository_init.rs`
+(valid repo + doctor-zero-errors, idempotent second host, bad-name rejection,
+schema version in fingerprint).
 
 ---
 
@@ -685,6 +734,9 @@ Avalanche never corrupts computed options by treating them as simple values.
 2. [ ] Greeter
 3. [ ] Dank Material Shell
 4. [ ] MangoWC
+5. [ ] Niri
+6. [ ] Hyprland
+7. [ ] Noctalia
 
 ## Exit criteria
 

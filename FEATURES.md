@@ -657,14 +657,17 @@ Confirmation
 Apply
 ```
 
-Current implementation (Phases 12–13): `plan_mutation` performs
+Current implementation (Phases 12–14): `plan_mutation` performs
 fingerprint/staleness rejection, ownership gating, computed/unknown refusal
-and intent resolution; `execute_mutation` additionally applies the plan
-through a `FileSource`, re-parses every touched file (Tier 1 structural
-validation) and rolls back all writes if any step fails, returning an
-`Applied` `Transaction` carrying the diff and validation report. `nix eval`
-(Tier 2), `nix flake check` (Tier 3), build (Tier 4) and interactive
-confirmation are deferred to Phases 14+.
+and intent resolution; `execute_mutation` applies the plan through a
+`FileSource`, runs Tier 1 structural validation pre-flight (rejecting before
+any write) and post-write, returning an `Applied` `Transaction` carrying the
+diff and validation report. `execute_mutation_with_tier` accepts a
+`ValidationTier` parameter and, when tier >= NixEval, runs `nix eval` +
+assertions on affected hosts; when tier >= FlakeCheck, runs `nix flake check`;
+when tier >= Build, runs `nix build --dry-run` per host. Higher-tier failures
+are recorded in the transaction's `ValidationReport` without silent rollback
+(writes already landed); the user inspects the report and decides.
 
 ---
 
@@ -833,6 +836,21 @@ Search understands:
 - upstream Nix options
 
 Results indicate the object type.
+
+### Implementation status
+
+Application search is implemented. `ConfigurationEngine::search_applications`
+performs a case-insensitive substring match over an application's name,
+category, requester name, GB option path, and module path, returning typed
+`Application` results. Applications are discovered from the declared
+`options.gb.{programs.system,home.programs}.<...>.enable` assignments (never
+inferred from file paths), so only options inside the two contract application
+namespaces are surfaced. Enabling an application writes a host override
+(`<app>.enable = true`) through the transactional write engine; disabling
+deletes that override rather than writing `false`. Install, package selection,
+capability-request wiring, and the unified cross-object search (packages,
+capabilities, profiles, hosts, users, and upstream Nix options in a single
+tagged result set) remain in later phases.
 
 ---
 

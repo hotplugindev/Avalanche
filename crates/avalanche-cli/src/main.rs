@@ -51,7 +51,7 @@ fn run() -> i32 {
     let repo_model = Repository::new(&args.repo);
     let engine = ConfigurationEngine::new(&args.repo);
 
-    let needs_index = args.command != "diff";
+    let needs_index = !matches!(args.command.as_str(), "diff" | "init");
     let built = if needs_index {
         let res = if args.use_nix {
             engine.index(&repo_model)
@@ -94,6 +94,10 @@ fn dispatch(
         "owners" => cmd_owners(engine, need_index(index)?, args),
         "doctor" => cmd_doctor(engine, need_index(index)?),
         "diff" => cmd_diff(engine),
+        "host" => cmd_host(engine, need_index(index)?, args),
+        "user" => cmd_user(engine, need_index(index)?, args),
+        "generate" => cmd_generate(engine, need_index(index)?, args),
+        "init" => cmd_init(args),
         other => Err(format!("unknown command '{}'", other)),
     }
 }
@@ -317,6 +321,145 @@ fn cmd_doctor(engine: &ConfigurationEngine, idx: &RepositoryIndex) -> Result<Cmd
     })
 }
 
+fn cmd_host(
+    engine: &ConfigurationEngine,
+    idx: &RepositoryIndex,
+    args: &Args,
+) -> Result<CmdOut, String> {
+    let sub = args
+        .rest
+        .first()
+        .ok_or("usage: host <create> <name>")?
+        .as_str();
+    match sub {
+        "create" => {
+            let name = args
+                .rest
+                .get(1)
+                .ok_or("host create requires a name")?
+                .clone();
+            let intent = avalanche_model::MutationIntent::CreateHost { name: name.clone() };
+            let txn = engine
+                .execute_mutation(idx, vec![intent])
+                .map_err(|e| e.to_string())?;
+            let diff = txn.diff.clone().unwrap_or_default();
+            let text = format!("created host '{}'\n{}", name, diff);
+            Ok(ok(jv(&txn), text))
+        }
+        other => Err(format!("unknown host subcommand '{}'", other)),
+    }
+}
+
+fn cmd_user(
+    engine: &ConfigurationEngine,
+    idx: &RepositoryIndex,
+    args: &Args,
+) -> Result<CmdOut, String> {
+    let sub = args
+        .rest
+        .first()
+        .ok_or("usage: user <create> <name>")?
+        .as_str();
+    match sub {
+        "create" => {
+            let name = args
+                .rest
+                .get(1)
+                .ok_or("user create requires a name")?
+                .clone();
+            let intent = avalanche_model::MutationIntent::CreateUser { name: name.clone() };
+            let txn = engine
+                .execute_mutation(idx, vec![intent])
+                .map_err(|e| e.to_string())?;
+            let diff = txn.diff.clone().unwrap_or_default();
+            let text = format!("created user '{}'\n{}", name, diff);
+            Ok(ok(jv(&txn), text))
+        }
+        other => Err(format!("unknown user subcommand '{}'", other)),
+    }
+}
+
+fn cmd_generate(
+    engine: &ConfigurationEngine,
+    idx: &RepositoryIndex,
+    args: &Args,
+) -> Result<CmdOut, String> {
+    let kind = args
+        .rest
+        .first()
+        .ok_or("usage: generate <program|capability|profile> <name>")?
+        .clone();
+    let name = args.rest.get(1).ok_or("generate requires a name")?.clone();
+    let intent = avalanche_model::MutationIntent::CreateModule { name, kind };
+    let txn = engine
+        .execute_mutation(idx, vec![intent])
+        .map_err(|e| e.to_string())?;
+    let diff = txn.diff.clone().unwrap_or_default();
+    Ok(ok(jv(&txn), diff))
+}
+
+fn cmd_init(args: &Args) -> Result<CmdOut, String> {
+    let mut host = String::new();
+    let mut user = String::new();
+    let mut full_name = String::new();
+    let mut email = String::new();
+    let mut system = "x86_64-linux".to_string();
+    let mut target = String::new();
+    let rest = &args.rest;
+    let mut i = 0;
+    while i < rest.len() {
+        match rest[i].as_str() {
+            "--host" => {
+                i += 1;
+                host = rest.get(i).ok_or("--host requires a value")?.clone();
+            }
+            "--user" => {
+                i += 1;
+                user = rest.get(i).ok_or("--user requires a value")?.clone();
+            }
+            "--full-name" => {
+                i += 1;
+                full_name = rest.get(i).ok_or("--full-name requires a value")?.clone();
+            }
+            "--email" => {
+                i += 1;
+                email = rest.get(i).ok_or("--email requires a value")?.clone();
+            }
+            "--system" => {
+                i += 1;
+                system = rest.get(i).ok_or("--system requires a value")?.clone();
+            }
+            other if other.starts_with('-') => {
+                return Err(format!("unknown init flag '{other}'"));
+            }
+            other => {
+                if target.is_empty() {
+                    target = other.to_string();
+                } else {
+                    return Err(format!("unexpected argument '{other}'"));
+                }
+            }
+        }
+        i += 1;
+    }
+    if target.is_empty() {
+        return Err("usage: init <path> --host <h> --user <u>".to_string());
+    }
+    let spec = avalanche_write::InitSpec {
+        host_name: host,
+        host_system: system,
+        user_name: user,
+        user_full_name: full_name,
+        user_email: email,
+    };
+    avalanche_core::ConfigurationEngine::init_repository(std::path::Path::new(&target), &spec)
+        .map_err(|e| e.to_string())?;
+    Ok(ok(
+        json!({"initialized": target}),
+        format!("initialized repository at {target}\n"),
+    ))
+}
+
 fn cmd_diff(engine: &ConfigurationEngine) -> Result<CmdOut, String> {
     let d = engine.diff()?;
     let text = if d.is_empty() {
@@ -432,7 +575,7 @@ fn parse_module_kind(s: &str) -> Option<ModuleKind> {
 }
 
 fn print_help() {
-    println!("avalanche — read-only Nix configuration inspector");
+    println!("avalanche — Nix configuration manager");
     println!();
     println!("USAGE:");
     println!("  avalanche [OPTIONS] <COMMAND>");
@@ -450,6 +593,10 @@ fn print_help() {
     println!("  owners <option-path>    who owns an upstream option");
     println!("  doctor                  repository diagnostics + repair proposals");
     println!("  diff                    working-tree diff");
+    println!("  host create <name>      create a new host");
+    println!("  user create <name>      create a new user");
+    println!("  generate <kind> <name>  generate a module (program|capability|profile)");
+    println!("  init <path> --host <h> --user <u>  initialize a new repository");
 }
 
 fn eprint_usage() {

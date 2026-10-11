@@ -169,7 +169,7 @@ fn execute_is_idempotent_when_value_already_set() {
 }
 
 #[test]
-fn execute_unsupported_intent_leaves_disk_untouched() {
+fn execute_module_without_aggregate_fails_closed_and_leaves_disk_untouched() {
     let dir = fixture("unsup");
     let repo = repo_with_profile(&dir);
     let engine = ConfigurationEngine::new(dir.display().to_string());
@@ -179,16 +179,17 @@ fn execute_unsupported_intent_leaves_disk_untouched() {
     let err = engine
         .execute_mutation(
             &index,
-            vec![MutationIntent::EnableCapability {
-                capability: "audio.pipewire".to_string(),
-                requester: "profiles.system.workstation".to_string(),
+            vec![MutationIntent::CreateModule {
+                name: "test".to_string(),
+                kind: "program".to_string(),
             }],
         )
         .unwrap_err();
-    assert!(matches!(err, WriteError::Unsupported(_)));
+    assert!(matches!(err, WriteError::EditFailed(_)));
 
     let after = read_disk(&dir, "modules/capabilities/system/audio/pipewire.nix");
     assert_eq!(before, after);
+    assert!(!dir.join("modules/programs/system/test.nix").exists());
 
     cleanup(&dir);
 }

@@ -19,7 +19,7 @@ pub use imports::{
     ImportGraph, ImportNode, ImportSite, ResolvedImport,
 };
 pub use lexer::{tokenize, LexError, Token, TokenKind};
-pub use parser::{collect_imports, parse, ParseError, Parser};
+pub use parser::{collect_imports, collect_imports_with_spans, parse, ParseError, Parser};
 pub use patch::{
     apply_patch, apply_patches, generate_binding_insertion_patch, generate_binding_removal_patch,
     generate_value_replacement_patch, PatchError, PatchPlan, SourcePatch,

@@ -102,10 +102,20 @@ impl Transaction {
         intents: Vec<MutationIntent>,
         plan: &MutationPlan,
     ) -> Self {
+        let mut file_changes: Vec<FileChange> = plan
+            .create
+            .iter()
+            .map(|nf| FileChange {
+                path: nf.path.clone(),
+                before: String::new(),
+                after: nf.content.clone(),
+            })
+            .collect();
+        file_changes.extend(plan.file_changes.clone());
         Self {
             id: id.into(),
             intents,
-            file_changes: plan.file_changes.clone(),
+            file_changes,
             validation: None,
             diff: Some(plan.diff.clone()),
             status: plan.status.clone(),
@@ -151,7 +161,24 @@ pub struct ResolvedEdit {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MutationPlan {
     pub edits: Vec<ResolvedEdit>,
+    pub create: Vec<NewFile>,
     pub file_changes: Vec<FileChange>,
+    pub diff: String,
+    pub fingerprint: Fingerprint,
+    pub status: TransactionStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NewFile {
+    pub path: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GenerationPlan {
+    pub create: Vec<NewFile>,
+    pub edits: Vec<ResolvedEdit>,
+    pub modified: Vec<FileChange>,
     pub diff: String,
     pub fingerprint: Fingerprint,
     pub status: TransactionStatus,

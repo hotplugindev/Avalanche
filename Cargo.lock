@@ -15,6 +15,7 @@ dependencies = [
  "anyhow",
  "avalanche-core",
  "avalanche-model",
+ "avalanche-write",
  "serde",
  "serde_json",
  "thiserror",

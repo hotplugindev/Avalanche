@@ -43,8 +43,8 @@ pub use request::{Request, ResolvedRequest};
 pub use scope::Scope;
 pub use source::{Position, SourceLocation, SourceSpan};
 pub use transaction::{
-    EditKind, FileChange, MutationIntent, MutationPlan, RenderHint, ResolvedEdit, Transaction,
-    TransactionStatus,
+    EditKind, FileChange, GenerationPlan, MutationIntent, MutationPlan, NewFile, RenderHint,
+    ResolvedEdit, Transaction, TransactionStatus,
 };
 pub use user::User;
 pub use validation::{ValidationFinding, ValidationReport, ValidationSeverity, ValidationTier};

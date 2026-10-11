@@ -83,6 +83,7 @@ pub struct DoctorInputs {
     pub modules: Vec<Module>,
     pub imports: HashMap<String, Vec<String>>,
     pub schemas: HashMap<String, OptionSchema>,
+    pub requests: Vec<avalanche_model::ResolvedRequest>,
 }
 
 pub struct DoctorService;
@@ -234,8 +235,8 @@ impl DoctorService {
     }
 
     fn check_ownership(&self, inputs: &DoctorInputs, diag: &mut Diagnosis) {
-        let requests: Vec<avalanche_model::ResolvedRequest> = Vec::new();
-        let registry = build_ownership_registry(&inputs.provenance, &inputs.modules, &requests);
+        let registry =
+            build_ownership_registry(&inputs.provenance, &inputs.modules, &inputs.requests);
 
         for (option_path, record) in registry.all_records() {
             match record.status {
@@ -446,6 +447,42 @@ impl DoctorService {
                 }
             }
         }
+
+        let module_names: HashSet<&str> =
+            inputs.modules.iter().map(|m| m.id.name.as_str()).collect();
+        let option_paths: HashSet<&str> = inputs.provenance.keys().map(|s| s.as_str()).collect();
+
+        for req in &inputs.requests {
+            if !req.active {
+                continue;
+            }
+            let request_path = req.capability.request_path();
+            if !option_paths.contains(request_path.as_str()) {
+                diag.add(ValidationFinding {
+                    severity: ValidationSeverity::Error,
+                    message: format!(
+                        "request '{}' has no corresponding option definition",
+                        request_path
+                    ),
+                    path: Some(request_path.clone()),
+                    file: None,
+                });
+            }
+            for requester in &req.requesters {
+                let name = requester.rsplit('.').next().unwrap_or(requester);
+                if !module_names.contains(name) && !option_paths.contains(requester.as_str()) {
+                    diag.add(ValidationFinding {
+                        severity: ValidationSeverity::Warning,
+                        message: format!(
+                            "requester '{}' in '{}' does not match any known module or option",
+                            requester, request_path
+                        ),
+                        path: Some(request_path.clone()),
+                        file: None,
+                    });
+                }
+            }
+        }
     }
 
     fn check_untracked_configuration(&self, inputs: &DoctorInputs, diag: &mut Diagnosis) {
@@ -592,6 +629,7 @@ mod tests {
             modules: Vec::new(),
             imports: HashMap::new(),
             schemas: HashMap::new(),
+            requests: Vec::new(),
         }
     }
 
@@ -883,6 +921,26 @@ mod tests {
             .findings
             .iter()
             .any(|f| f.message.contains("not a registered module")));
+    }
+
+    #[test]
+    fn broken_request_with_unknown_requester_is_detected() {
+        use avalanche_model::{CapabilityId, ResolvedRequest};
+        let mut inputs = empty_inputs();
+        inputs.repository.schema_version = Some(1);
+        inputs.requests.push(ResolvedRequest {
+            capability: CapabilityId {
+                scope: Scope::System,
+                domain: "audio".to_string(),
+                name: "pipewire".to_string(),
+            },
+            requesters: vec!["programs.system.nonexistent.thing".to_string()],
+            active: true,
+        });
+        let diag = svc().diagnose(&inputs);
+        assert!(diag.findings.iter().any(|f| f
+            .message
+            .contains("does not match any known module or option")));
     }
 
     #[test]

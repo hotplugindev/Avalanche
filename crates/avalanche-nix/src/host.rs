@@ -43,6 +43,7 @@ pub fn eval_host(process: &NixProcess, repo_path: &Path, host: &str) -> NixResul
     let attr = format!(".#nixosConfigurations.{host}");
     let apply = r#"cfg: {
   system = (if cfg ? pkgs.stdenv.hostPlatform.system then cfg.pkgs.stdenv.hostPlatform.system else "unknown");
+  config = { gb = if cfg ? config.gb then cfg.config.gb else {}; };
 }"#;
     let args = ["eval", "--json", &attr, "--apply", apply];
     let output = process.run(&args, repo_path)?;
@@ -66,10 +67,12 @@ pub fn eval_host(process: &NixProcess, repo_path: &Path, host: &str) -> NixResul
         .unwrap_or("unknown")
         .to_string();
 
+    let config = json.get("config").cloned().unwrap_or(Value::Null);
+
     Ok(HostEvalResult {
         host: host.to_string(),
         system,
-        config: Value::Null,
+        config,
     })
 }
 

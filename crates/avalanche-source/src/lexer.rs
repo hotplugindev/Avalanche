@@ -594,6 +594,10 @@ impl<'a> Lexer<'a> {
                         SourceSpan::new(start, self.current_pos()),
                     )
                 }
+                '.' if self.peek_ahead(1) == Some('.') && self.peek_ahead(2) == Some('/') => {
+                    let (text, kind) = self.read_path_or_ident(ch);
+                    Token::new(kind, text, SourceSpan::new(start, self.current_pos()))
+                }
                 '.' if self.peek_ahead(1) == Some('/') => {
                     let (text, kind) = self.read_path_or_ident(ch);
                     Token::new(kind, text, SourceSpan::new(start, self.current_pos()))

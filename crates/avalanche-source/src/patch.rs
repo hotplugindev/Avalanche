@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::ast::{Binding, Expr, NixFile};
-use crate::format::format_expr;
+use crate::format::{format_expr, format_expr_indented};
 use crate::parser::parse;
 
 #[derive(Debug, Error)]
@@ -213,7 +213,13 @@ pub fn generate_binding_insertion_patch(
         "  ".to_string()
     };
 
-    let new_binding_text = format!("{}{} = {};", indent, attr_path, format_expr(value));
+    let indent_level = indent.len() / 2;
+    let new_binding_text = format!(
+        "{}{} = {};",
+        indent,
+        attr_path,
+        format_expr_indented(value, indent_level)
+    );
 
     let insert_span = if let Some(parent) = &parent_binding {
         avalanche_model::source::SourceSpan::new(parent.span.end, parent.span.end)
@@ -231,11 +237,13 @@ pub fn generate_binding_insertion_patch(
         )
     };
 
+    let trailing = if parent_binding.is_some() { "" } else { "\n" };
+
     Ok(SourcePatch::new(
         file_path,
         insert_span,
         String::new(),
-        format!("\n{}", new_binding_text),
+        format!("\n{}{}", new_binding_text, trailing),
         format!("Insert binding {attr_path}"),
     ))
 }

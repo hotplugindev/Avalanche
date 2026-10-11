@@ -127,6 +127,45 @@ impl ValidationService {
         }
         report
     }
+
+    pub fn validate_build(&self, nix: &NixService, hosts: &[String]) -> ValidationReport {
+        let mut report = ValidationReport::new(ValidationTier::Build);
+        for host in hosts {
+            let attr = format!(".#nixosConfigurations.{host}.config.system.build.toplevel");
+            match nix.build_dry_run(&attr) {
+                Ok(result) if !result.success => {
+                    report.add(ValidationFinding {
+                        severity: ValidationSeverity::Error,
+                        message: format!(
+                            "nix build dry-run failed for host '{host}': {}",
+                            result.stderr
+                        ),
+                        path: None,
+                        file: None,
+                    });
+                }
+                Ok(_) => {}
+                Err(avalanche_nix::NixError::NixNotFound) => {
+                    report.add(ValidationFinding {
+                        severity: ValidationSeverity::Warning,
+                        message: "nix binary not available; Tier 4 build skipped".to_string(),
+                        path: None,
+                        file: None,
+                    });
+                    return report;
+                }
+                Err(e) => {
+                    report.add(ValidationFinding {
+                        severity: ValidationSeverity::Error,
+                        message: format!("nix build dry-run error for host '{host}': {e}"),
+                        path: None,
+                        file: None,
+                    });
+                }
+            }
+        }
+        report
+    }
 }
 
 #[cfg(test)]
@@ -207,5 +246,41 @@ mod tests {
             report.findings[0].path.as_deref().unwrap(),
             "hosts/pc/default.nix"
         );
+    }
+
+    fn missing_nix() -> NixService {
+        let config = avalanche_nix::NixProcessConfig {
+            nix_binary: "avalanche-definitely-not-a-nix-binary".to_string(),
+            ..Default::default()
+        };
+        NixService::with_config("/tmp", config)
+    }
+
+    #[test]
+    fn validate_build_returns_warning_when_nix_missing() {
+        let svc = ValidationService::new();
+        let report = svc.validate_build(&missing_nix(), &["pc".to_string()]);
+        assert_eq!(report.tier, ValidationTier::Build);
+        assert_eq!(report.findings.len(), 1);
+        assert_eq!(report.findings[0].severity, ValidationSeverity::Warning);
+        assert!(report.passed);
+    }
+
+    #[test]
+    fn validate_build_empty_hosts_passes() {
+        let svc = ValidationService::new();
+        let report = svc.validate_build(&missing_nix(), &[]);
+        assert_eq!(report.tier, ValidationTier::Build);
+        assert!(report.passed);
+        assert!(report.findings.is_empty());
+    }
+
+    #[test]
+    fn validate_flake_check_returns_warning_when_nix_missing() {
+        let svc = ValidationService::new();
+        let report = svc.validate_flake_check(&missing_nix());
+        assert_eq!(report.tier, ValidationTier::FlakeCheck);
+        assert_eq!(report.findings[0].severity, ValidationSeverity::Warning);
+        assert!(report.passed);
     }
 }

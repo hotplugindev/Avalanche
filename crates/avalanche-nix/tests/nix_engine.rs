@@ -114,6 +114,17 @@ fn eval_host_returns_system() {
 }
 
 #[test]
+fn eval_host_returns_gb_config() {
+    if !nix_available() {
+        return;
+    }
+    let svc = service();
+    let result = svc.eval_host("testhost").unwrap();
+    assert_eq!(result.config["gb"]["schemaVersion"], 1);
+    assert_eq!(result.config["gb"]["programs"]["git"]["enable"], true);
+}
+
+#[test]
 fn eval_host_option_bool() {
     if !nix_available() {
         return;

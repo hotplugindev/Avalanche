@@ -625,6 +625,42 @@ pub fn collect_imports(expr: &Expr) -> Vec<ImportRef> {
     imports
 }
 
+pub fn collect_imports_with_spans(source: &str) -> Vec<ImportRef> {
+    match parse(source) {
+        Ok(file) => file.imports,
+        Err(_) => Vec::new(),
+    }
+}
+
+fn attach_import_spans(source: &str, imports: Vec<ImportRef>) -> Vec<ImportRef> {
+    if imports.is_empty() {
+        return imports;
+    }
+    let tokens = match tokenize(source) {
+        Ok(t) => t,
+        Err(_) => return imports,
+    };
+    let path_tokens: Vec<&Token> = tokens
+        .iter()
+        .filter(|t| t.kind == TokenKind::Path)
+        .collect();
+    let mut cursor = 0usize;
+    let mut out = Vec::with_capacity(imports.len());
+    for imp in imports {
+        let mut matched = None;
+        while cursor < path_tokens.len() {
+            let tok = path_tokens[cursor];
+            cursor += 1;
+            if tok.text == imp.path {
+                matched = Some(tok.span);
+                break;
+            }
+        }
+        out.push(ImportRef::new(imp.path, matched.unwrap_or(imp.span)));
+    }
+    out
+}
+
 fn walk_imports(expr: &Expr, imports: &mut Vec<ImportRef>) {
     match expr {
         Expr::Apply { func, arg } => {
@@ -737,7 +773,9 @@ fn collect_paths_from_expr(expr: &Expr, imports: &mut Vec<ImportRef>) {
 pub fn parse(input: &str) -> Result<NixFile, ParseError> {
     let tokens = tokenize(input).map_err(|e| ParseError::Lex(e.to_string()))?;
     let mut parser = Parser::new(tokens);
-    parser.parse()
+    let mut file = parser.parse()?;
+    file.imports = attach_import_spans(input, file.imports);
+    Ok(file)
 }
 
 #[cfg(test)]
@@ -829,6 +867,14 @@ mod tests {
         assert_eq!(file.imports.len(), 2);
         assert_eq!(file.imports[0].path, "./foo.nix");
         assert_eq!(file.imports[1].path, "./bar.nix");
+    }
+
+    #[test]
+    fn parse_import_spans_are_real() {
+        let file = parse("{ imports = [ ./foo.nix ]; }").unwrap();
+        assert_eq!(file.imports.len(), 1);
+        assert_eq!(file.imports[0].span.start.line, 1);
+        assert!(file.imports[0].span.start.column > 0);
     }
 
     #[test]

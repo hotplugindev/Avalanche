@@ -1,9 +1,11 @@
+pub mod application_index;
 pub mod error;
 pub mod fingerprint;
 pub mod provenance_index;
 pub mod semantic_index;
 pub mod static_index;
 
+pub use application_index::build_application_index;
 pub use error::{IndexError, IndexResult};
 pub use fingerprint::{compute_fingerprint, is_stale, INDEX_SCHEMA_VERSION};
 pub use provenance_index::build_provenance_index;
@@ -176,14 +178,19 @@ impl IndexService {
             .map(|(path, prov)| (path.clone(), prov.definitions.clone()))
             .collect();
 
+        let applications = build_application_index(&static_idx);
+
+        let mut repo = repository.clone();
+        repo.schema_version = fp.schema_version;
+
         Ok(RepositoryIndex {
-            repository: repository.clone(),
+            repository: repo,
             options: semantic_idx.schemas.clone(),
             definitions,
-            effective,
             provenance,
+            effective,
             capabilities,
-            applications: Vec::new(),
+            applications,
             profiles,
             hosts,
             users: repository.users.clone(),
@@ -212,14 +219,19 @@ impl IndexService {
             .map(|(path, prov)| (path.clone(), prov.definitions.clone()))
             .collect();
 
+        let applications = build_application_index(&static_idx);
+
+        let mut repo = repository.clone();
+        repo.schema_version = fp.schema_version;
+
         Ok(RepositoryIndex {
-            repository: repository.clone(),
+            repository: repo,
             options: HashMap::new(),
             definitions,
-            effective: HashMap::new(),
             provenance,
+            effective: HashMap::new(),
             capabilities: Vec::new(),
-            applications: Vec::new(),
+            applications,
             profiles: repository.profiles.clone(),
             hosts: repository.hosts.clone(),
             users: repository.users.clone(),
